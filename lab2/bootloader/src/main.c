@@ -2,7 +2,7 @@
 #include "shell.h"
 
 extern char* _bootloader_relocated_addr;
-extern unsigned long long __code_size;
+extern unsignxxxxxxxxed long long __code_size;
 extern unsigned long long _start;
 char* _dtb;
 

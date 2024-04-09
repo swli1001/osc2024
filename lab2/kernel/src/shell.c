@@ -33,23 +33,34 @@ void cli_cmd_clear(char* buffer, int length)
     }
 };
 
-void cli_cmd_read(char* buffer)
-{
-    char c='\0';
+void cli_cmd_read(char* buffer) {
+    char c = '\0';
     int idx = 0;
-    while(1)
-    {
-        if ( idx >= CMD_MAX_LEN ) break;
+    while (1) {
+        if (idx >= CMD_MAX_LEN) break;
 
-        c = uart_recv();
-        if ( c == '\n')
-        {
+        c = uart_recv(); // Assume uart_recv() is blocking and waits for a char
+
+        // Check for newline (Enter key) to break the loop
+        if (c == '\n') {
             uart_puts("\r\n");
             break;
         }
-        buffer[idx++] = c;
-        uart_send(c);
+        // Handle backspace (0x08) or delete (0x7F) key
+        else if ((c == 0x08) || (c == 0x7F)) {
+            if (idx > 0) { // Make sure there is something to delete
+                idx--; // Move back the index to "delete" the last char
+                uart_send(0x08); // Move the cursor back
+                uart_send(' ');  // Replace the char with space
+                uart_send(0x08); // Move the cursor back again
+            }
+        } else {
+            buffer[idx++] = c;
+            uart_send(c); // Echo the character back to the terminal
+        }
     }
+
+    buffer[idx] = '\0'; // Null-terminate the string
 }
 
 void cli_cmd_exec(char* buffer)
@@ -221,10 +232,12 @@ void cmd_malloc()
     memcpy(test2,"malloc2",sizeof("malloc2"));
     uart_puts("%s\n",test2);
 
+
     char* test3 = malloc(0x28);
     memcpy(test3,"malloc3",sizeof("malloc3"));
     uart_puts("%s\n",test3);
 }
+
 
 void cmd_reboot()
 {
