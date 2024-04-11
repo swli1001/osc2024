@@ -40,7 +40,10 @@ void core_timer_disable()
 void core_timer_handler(){
     if (list_empty(timer_event_list))
     {
+        // simulate disable functiuon
         set_core_timer_interrupt(10000); // disable timer interrupt (set a very big value)
+	    unsigned long long absent_time = get_tick_plus_s(10000); //  it's important
+    	set_core_timer_interrupt_by_tick(absent_time);
         return;
     }
     timer_event_callback((timer_event_t *)timer_event_list->next); // do callback and set new interrupt
@@ -50,8 +53,7 @@ void timer_event_callback(timer_event_t * timer_event){
     list_del_entry((struct list_head*)timer_event); // delete the event in queue
     free(timer_event->args);                        // free the event's space
     free(timer_event);
-    ((void (*)(char*))timer_event-> callback)(timer_event->args);  // call the event
-
+    
     // set queue linked list to next time event if it exists
     if(!list_empty(timer_event_list))
     {
@@ -61,10 +63,20 @@ void timer_event_callback(timer_event_t * timer_event){
     {
         set_core_timer_interrupt(10000);  // disable timer interrupt (set a very big value)
     }
+    core_timer_enable(); // call the callback before enable will fail
+    // 要可以interrupt
+    
+    ((void (*)(char*))timer_event-> callback)(timer_event->args);  // call the event
 }
+
 
 void timer_set2sAlert(char* str)
 {
+    static int count = 0;
+    count += 1;
+    if (count > 5) {
+        return;
+    }
     unsigned long long cntpct_el0;
     __asm__ __volatile__("mrs %0, cntpct_el0\n\t": "=r"(cntpct_el0)); // tick auchor
     unsigned long long cntfrq_el0;

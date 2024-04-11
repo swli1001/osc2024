@@ -7,7 +7,7 @@ from sys import platform
 
 if platform == "linux" or platform == "linux2":
     parser = argparse.ArgumentParser(description='NYCU OSDI kernel sender')
-    parser.add_argument('--filename', metavar='PATH', default='kernel8.img', type=str, help='path to kernel8.img')
+    parser.add_argument('--filename', metavar='PATH', default='../kernel/kernel8.img', type=str, help='path to kernel8.img')
     parser.add_argument('--device', metavar='TTY',default='/dev/ttyUSB0', type=str,  help='path to UART device')
     parser.add_argument('--baud', metavar='Hz',default=115200, type=int,  help='baud rate')
     args = parser.parse_args()

@@ -6,6 +6,7 @@
 #include "heap.h"
 
 // DAIF, Interrupt Mask Bits
+// Debug, Asynchronous abort, IRQ, and FIQ 
 void el1_interrupt_enable(){
     __asm__ __volatile__("msr daifclr, 0xf"); // umask all DAIF
 }
@@ -15,13 +16,15 @@ void el1_interrupt_disable(){
 }
 
 void el1h_irq_router(){
+    //static int timer_priorty = 10;
     // decouple the handler into irqtask queue
     // (1) https://datasheets.raspberrypi.com/bcm2835/bcm2835-peripherals.pdf - Pg.113
     // (2) https://datasheets.raspberrypi.com/bcm2836/bcm2836-peripherals.pdf - Pg.16
     if(*IRQ_PENDING_1 & IRQ_PENDING_1_AUX_INT && *CORE0_INTERRUPT_SOURCE & INTERRUPT_SOURCE_GPU) // from aux && from GPU0 -> uart exception
-    {
+    {     //  BCM2835 ARM Peripherals 13
         if (*AUX_MU_IIR_REG & (1 << 1)) // FIFO clear bits
         {
+            
             *AUX_MU_IER_REG &= ~(2);  // disable write interrupt
             irqtask_add(uart_w_irq_handler, UART_IRQ_PRIORITY);
             irqtask_run_preemptive(); // run the queued task before returning to the program.
@@ -35,6 +38,7 @@ void el1h_irq_router(){
     }
     else if(*CORE0_INTERRUPT_SOURCE & INTERRUPT_SOURCE_CNTPNSIRQ)  //from CNTPNS (core_timer) // A1 - setTimeout run in el1
     {
+        // 把正在觸發的timer interrupt 給關掉
         core_timer_disable();
         irqtask_add(core_timer_handler, TIMER_IRQ_PRIORITY);
         irqtask_run_preemptive();
@@ -119,6 +123,7 @@ void irqtask_add(void *task_function,unsigned long long priority){
     struct list_head *curr;
 
     // mask the device's interrupt line
+    // 更高級中斷
     el1_interrupt_disable();
     // enqueue the processing task to the event queue with sorting.
     list_for_each(curr, task_list)
@@ -139,6 +144,7 @@ void irqtask_add(void *task_function,unsigned long long priority){
 }
 
 void irqtask_run_preemptive(){
+    extern int flag;
     el1_interrupt_enable();
     while (!list_empty(task_list))
     {
@@ -147,9 +153,11 @@ void irqtask_run_preemptive(){
         // get next task(highest priority) in list which is sorted by priority
         irqtask_t *the_task = (irqtask_t *)task_list->next;
         // Run new task (early return) if its priority is lower than the scheduled task.
+        // curr is the running task
         if (curr_task_priority <= the_task->priority)
         {
             el1_interrupt_enable();
+            flag = 1;
             break;
         }
         // get the scheduled task and run it.

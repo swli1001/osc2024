@@ -8,6 +8,7 @@
 #include "dtb.h"
 #include "heap.h"
 #include "timer.h"
+#include "exception.h"
 
 #define CLI_MAX_CMD 11
 #define USTACK_SIZE 0x10000
@@ -25,16 +26,34 @@ void cli_cmd_clear(char* buffer, int length)
 
 void cli_cmd_read(char* buffer)
 {
-    char c='\0';
+    char c = '\0';
     int idx = 0;
-    while(1)
+    while (1)
     {
-        if ( idx >= CMD_MAX_LEN ) break;
-        c = uart_async_getc();
-        if ( c == '\n') break;
-        buffer[idx++] = c;
+        if (idx >= CMD_MAX_LEN) break;
+        c = uart_async_getc();  // Read character from UART
+
+        if (c == '\n') {
+            uart_async_putc('\r');
+            uart_async_putc('\n');
+            break;
+        }
+
+        if (c == '\b' || c == 0x7F) {
+            if (idx > 0) {
+                idx--;
+                uart_async_putc('\b');
+                uart_async_putc(' ');
+                uart_async_putc('\b');
+            }
+        } else {
+            buffer[idx] = c;
+            idx++;
+        }
     }
+    buffer[idx] = '\0';
 }
+
 
 void cli_cmd_exec(char* buffer)
 {
@@ -55,8 +74,8 @@ void cli_cmd_exec(char* buffer)
         do_cmd_help();
     } else if (strcmp(cmd, "info") == 0) {
         do_cmd_info();
-    } else if (strcmp(cmd, "kmalloc") == 0) {
-        do_cmd_kmalloc();
+    } else if (strcmp(cmd, "malloc") == 0) {
+        do_cmd_malloc();
     } else if (strcmp(cmd, "ls") == 0) {
         do_cmd_ls(argvs);
     } else if (strcmp(cmd, "setTimeout") == 0) {
@@ -64,16 +83,18 @@ void cli_cmd_exec(char* buffer)
         do_cmd_setTimeout(argvs, sec);
     } else if (strcmp(cmd, "set2sAlert") == 0) {
         do_cmd_set2sAlert();
+    } else if (strcmp(cmd, "preemption") == 0) {
+        do_cmd_preemption();
     } else if (strcmp(cmd, "reboot") == 0) {
         do_cmd_reboot();
-    }
+    } 
 }
 
 void cli_print_banner()
 {
     uart_puts("\r\n");
     uart_puts("=======================================\r\n");
-    uart_puts("                 Shell                 \r\n");
+    uart_puts("               Terminal                \r\n");
     uart_puts("=======================================\r\n");
 }
 
@@ -118,11 +139,12 @@ void do_cmd_help()
     uart_puts("\texec:\t\tturn program from cpio.\n");
     uart_puts("\thello:\t\tprint Hello World!.\n");
     uart_puts("\thelp:\t\tprint all available commands.\n");
-    uart_puts("\tkmalloc:\tsimple allocator in heap session.\n");
+    uart_puts("\tmalloc:\tsimple allocator in heap session.\n");
     uart_puts("\tinfo:\t\tget device information via mailbox.\n");
     uart_puts("\tls:\t\tlist directory contents.\n");
     uart_puts("\tsetTimeout:\tsetTimeout [MESSAGE] [SECONDS].\n");
     uart_puts("\tset2sAlert:\tset core timer interrupt every 2 second.\n");
+    uart_puts("\tpreemption:\tpreemption test\n");
     uart_puts("\treboot:\t\treboot the device.\n");
     uart_puts("\n");
 }
@@ -207,18 +229,18 @@ void do_cmd_info()
     }
 }
 
-void do_cmd_kmalloc()
+void do_cmd_malloc()
 {
     //test malloc
-    char* test1 = kmalloc(0x18);
+    char* test1 = malloc(0x18);
     memcpy(test1,"test malloc1",sizeof("test malloc1"));
     uart_puts("%s\n",test1);
 
-    char* test2 = kmalloc(0x20);
+    char* test2 = malloc(0x20);
     memcpy(test2,"test malloc2",sizeof("test malloc2"));
     uart_puts("%s\n",test2);
 
-    char* test3 = kmalloc(0x28);
+    char* test3 = malloc(0x28);
     memcpy(test3,"test malloc3",sizeof("test malloc3"));
     uart_puts("%s\n",test3);
 }
@@ -253,6 +275,26 @@ void do_cmd_setTimeout(char* msg, char* sec)
 void do_cmd_set2sAlert()
 {
     add_timer(timer_set2sAlert,2,"2sAlert");
+}
+
+
+volatile int flag;
+
+void lower_priority_task() {
+    flag = 0;
+    uart_puts("I am lower priority task, running...\r\n");
+    while(flag == 0) {}
+    uart_puts("Lower priority task is now preempted.\r\n");
+}
+
+void high_priority_task() {
+    flag = 1;
+    uart_puts("High priority task is running, preemption successful!\r\n");
+}
+
+void do_cmd_preemption() {    
+    add_timer(high_priority_task, 5,"high priority task");
+    irqtask_add(lower_priority_task, 100);
 }
 
 void do_cmd_reboot()
