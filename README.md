@@ -2,7 +2,7 @@
 
 | Github Account | Student ID | Name          |
 |----------------|------------|---------------|
-| foodieteng     | A121163    | JunTengChang  |
+| foodieteng     | A121163    | 張浚騰         |
 
 ## Requirements
 
