@@ -8,7 +8,9 @@
 #include "dtb.h"
 #include "heap.h"
 #include "timer.h"
+//test
 #include "exception.h"
+#include "utils.h"
 
 #define CLI_MAX_CMD 11
 #define USTACK_SIZE 0x10000
@@ -18,7 +20,7 @@ void* CPIO_DEFAULT_PLACE;
 
 void cli_cmd_clear(char* buffer, int length)
 {
-    for(int i=0; i<length; i++)
+    for (int i = 0; i < length; i++)
     {
         buffer[i] = '\0';
     }
@@ -31,29 +33,18 @@ void cli_cmd_read(char* buffer)
     while (1)
     {
         if (idx >= CMD_MAX_LEN) break;
-        c = uart_async_getc();  // Read character from UART
+        c = uart_async_getc(); //test preemtive
+        if (c == '\n') break;
 
-        if (c == '\n') {
-            uart_async_putc('\r');
-            uart_async_putc('\n');
-            break;
-        }
-
-        if (c == '\b' || c == 0x7F) {
-            if (idx > 0) {
-                idx--;
-                uart_async_putc('\b');
-                uart_async_putc(' ');
-                uart_async_putc('\b');
-            }
-        } else {
-            buffer[idx] = c;
-            idx++;
-        }
+        if (c == 127 && idx > 0)
+        {
+            uart_puts("\b \b"); //test preemptive
+            idx--;
+            continue;
+        }        
+        buffer[idx++] = c;
     }
-    buffer[idx] = '\0';
 }
-
 
 void cli_cmd_exec(char* buffer)
 {
@@ -62,40 +53,58 @@ void cli_cmd_exec(char* buffer)
     char* cmd = buffer;
     char* argvs = str_SepbySpace(buffer);
 
-    if (strcmp(cmd, "cat") == 0) {
+    if (strcmp(cmd, "cat") == 0)
+    {
         do_cmd_cat(argvs);
-    } else if (strcmp(cmd, "dtb") == 0){
+    } else if (strcmp(cmd, "dtb") == 0)
+    {
         do_cmd_dtb();
-    } else if (strcmp(cmd, "exec") == 0){
+    } else if (strcmp(cmd, "exec") == 0)
+    {
         do_cmd_exec(argvs);
-    } else if (strcmp(cmd, "hello") == 0) {
+    } else if (strcmp(cmd, "hello") == 0)
+    {
         do_cmd_hello();
-    } else if (strcmp(cmd, "help") == 0) {
+    } else if (strcmp(cmd, "help") == 0)
+    {
         do_cmd_help();
-    } else if (strcmp(cmd, "info") == 0) {
+    } else if (strcmp(cmd, "info") == 0)
+    {
         do_cmd_info();
-    } else if (strcmp(cmd, "malloc") == 0) {
-        do_cmd_malloc();
-    } else if (strcmp(cmd, "ls") == 0) {
+    } else if (strcmp(cmd, "kmalloc") == 0)
+    {
+        do_cmd_kmalloc();
+    } else if (strcmp(cmd, "ls") == 0)
+    {
         do_cmd_ls(argvs);
-    } else if (strcmp(cmd, "setTimeout") == 0) {
+    } else if (strcmp(cmd, "setTimeout") == 0)
+    {
         char* sec = str_SepbySpace(argvs);
         do_cmd_setTimeout(argvs, sec);
-    } else if (strcmp(cmd, "set2sAlert") == 0) {
+    } else if (strcmp(cmd, "set2sAlert") == 0)
+    {
         do_cmd_set2sAlert();
-    } else if (strcmp(cmd, "preemption") == 0) {
-        do_cmd_preemption();
-    } else if (strcmp(cmd, "reboot") == 0) {
-        do_cmd_reboot();
+    }
+    else if (strcmp(buffer, "preemption") == 0)
+    {
+        // EL1
+        do_test_preemptive();
     } 
+    else if (strcmp(cmd, "reboot") == 0)
+    {
+        do_cmd_reboot();
+    } else
+        uart_puts("Command not found! Type <help> for commands.\n");
 }
 
 void cli_print_banner()
 {
     uart_puts("\r\n");
-    uart_puts("=======================================\r\n");
-    uart_puts("               Terminal                \r\n");
-    uart_puts("=======================================\r\n");
+    uart_puts("╔═══════════════════════╗\r\n");
+    uart_puts("║ Raspberry Pi Terminal ║\r\n");
+    uart_puts("╚═══════════════════════╝\r\n");
+    uart_puts("Type 'help' for commands.\r\n");
+    uart_puts("\r\n");
 }
 
 void do_cmd_cat(char* filepath)
@@ -103,26 +112,26 @@ void do_cmd_cat(char* filepath)
     char* c_filepath;
     char* c_filedata;
     unsigned int c_filesize;
-    struct cpio_newc_header *header_ptr = CPIO_DEFAULT_PLACE;
+    struct cpio_newc_header* header_ptr = CPIO_DEFAULT_PLACE;
 
-    while(header_ptr!=0)
+    while (header_ptr != 0)
     {
         int error = cpio_newc_parse_header(header_ptr, &c_filepath, &c_filesize, &c_filedata, &header_ptr);
         //if parse header error
-        if(error)
+        if (error)
         {
             uart_puts("cpio parse error");
             break;
         }
 
-        if(strcmp(c_filepath, filepath)==0)
+        if (strcmp(c_filepath, filepath) == 0)
         {
             uart_puts("%s", c_filedata);
             break;
         }
 
         //if this is TRAILER!!! (last of file)
-        if(header_ptr==0) uart_puts("cat: %s: No such file or directory\n", filepath);
+        if (header_ptr == 0) uart_puts("cat: %s: No such file or directory\n", filepath);
     }
 }
 
@@ -139,12 +148,12 @@ void do_cmd_help()
     uart_puts("\texec:\t\tturn program from cpio.\n");
     uart_puts("\thello:\t\tprint Hello World!.\n");
     uart_puts("\thelp:\t\tprint all available commands.\n");
-    uart_puts("\tmalloc:\tsimple allocator in heap session.\n");
+    uart_puts("\tkmalloc:\tsimple allocator in heap session.\n");
     uart_puts("\tinfo:\t\tget device information via mailbox.\n");
     uart_puts("\tls:\t\tlist directory contents.\n");
     uart_puts("\tsetTimeout:\tsetTimeout [MESSAGE] [SECONDS].\n");
     uart_puts("\tset2sAlert:\tset core timer interrupt every 2 second.\n");
-    uart_puts("\tpreemption:\tpreemption test\n");
+    uart_puts("\tpreemption:\ttest preemption.\n");
     uart_puts("\treboot:\t\treboot the device.\n");
     uart_puts("\n");
 }
@@ -154,19 +163,19 @@ void do_cmd_exec(char* filepath)
     char* c_filepath;
     char* c_filedata;
     unsigned int c_filesize;
-    struct cpio_newc_header *header_ptr = CPIO_DEFAULT_PLACE;
+    struct cpio_newc_header* header_ptr = CPIO_DEFAULT_PLACE;
 
-    while(header_ptr!=0)
+    while (header_ptr != 0)
     {
         int error = cpio_newc_parse_header(header_ptr, &c_filepath, &c_filesize, &c_filedata, &header_ptr);
         //if parse header error
-        if(error)
+        if (error)
         {
             uart_puts("cpio parse error");
             break;
         }
 
-        if(strcmp(c_filepath, filepath)==0)
+        if (strcmp(c_filepath, filepath) == 0)
         {
             //exec c_filedata
             char* ustack = kmalloc(USTACK_SIZE);
@@ -175,13 +184,13 @@ void do_cmd_exec(char* filepath)
                 "msr sp_el0, %1\n\t"    // user program stack pointer set to new stack.
                 "eret\n\t"              // Perform exception return. EL1 -> EL0
                 :: "r" (c_filedata),
-                   "r" (ustack+USTACK_SIZE));
+                "r" (ustack + USTACK_SIZE));
             free(ustack);
             break;
         }
 
         //if this is TRAILER!!! (last of file)
-        if(header_ptr==0) uart_puts("cat: %s: No such file or directory\n", filepath);
+        if (header_ptr == 0) uart_puts("cat: %s: No such file or directory\n", filepath);
     }
 
 }
@@ -203,7 +212,8 @@ void do_cmd_info()
     pt[6] = 0;
     pt[7] = MBOX_TAG_LAST_BYTE;
 
-    if (mbox_call(MBOX_TAGS_ARM_TO_VC, (unsigned int)((unsigned long)&pt)) ) {
+    if (mbox_call(MBOX_TAGS_ARM_TO_VC, (unsigned int)((unsigned long)&pt)))
+    {
         uart_puts("Hardware Revision\t: ");
         uart_2hex(pt[6]);
         uart_2hex(pt[5]);
@@ -219,7 +229,8 @@ void do_cmd_info()
     pt[6] = 0;
     pt[7] = MBOX_TAG_LAST_BYTE;
 
-    if (mbox_call(MBOX_TAGS_ARM_TO_VC, (unsigned int)((unsigned long)&pt)) ) {
+    if (mbox_call(MBOX_TAGS_ARM_TO_VC, (unsigned int)((unsigned long)&pt)))
+    {
         uart_puts("ARM Memory Base Address\t: ");
         uart_2hex(pt[5]);
         uart_puts("\r\n");
@@ -229,20 +240,20 @@ void do_cmd_info()
     }
 }
 
-void do_cmd_malloc()
+void do_cmd_kmalloc()
 {
     //test malloc
-    char* test1 = malloc(0x18);
-    memcpy(test1,"test malloc1",sizeof("test malloc1"));
-    uart_puts("%s\n",test1);
+    char* test1 = kmalloc(0x18);
+    memcpy(test1, "test malloc1", sizeof("test malloc1"));
+    uart_puts("%s\n", test1);
 
-    char* test2 = malloc(0x20);
-    memcpy(test2,"test malloc2",sizeof("test malloc2"));
-    uart_puts("%s\n",test2);
+    char* test2 = kmalloc(0x20);
+    memcpy(test2, "test malloc2", sizeof("test malloc2"));
+    uart_puts("%s\n", test2);
 
-    char* test3 = malloc(0x28);
-    memcpy(test3,"test malloc3",sizeof("test malloc3"));
-    uart_puts("%s\n",test3);
+    char* test3 = kmalloc(0x28);
+    memcpy(test3, "test malloc3", sizeof("test malloc3"));
+    uart_puts("%s\n", test3);
 }
 
 void do_cmd_ls(char* workdir)
@@ -250,51 +261,31 @@ void do_cmd_ls(char* workdir)
     char* c_filepath;
     char* c_filedata;
     unsigned int c_filesize;
-    struct cpio_newc_header *header_ptr = CPIO_DEFAULT_PLACE;
+    struct cpio_newc_header* header_ptr = CPIO_DEFAULT_PLACE;
 
-    while(header_ptr!=0)
+    while (header_ptr != 0)
     {
         int error = cpio_newc_parse_header(header_ptr, &c_filepath, &c_filesize, &c_filedata, &header_ptr);
         //if parse header error
-        if(error)
+        if (error)
         {
             uart_puts("cpio parse error");
             break;
         }
 
         //if this is not TRAILER!!! (last of file)
-        if(header_ptr!=0) uart_puts("%s\n", c_filepath);
+        if (header_ptr != 0) uart_puts("%s\n", c_filepath);
     }
 }
 
 void do_cmd_setTimeout(char* msg, char* sec)
 {
-    add_timer(uart_sendline,atoi(sec),msg);
+    add_timer(uart_sendline, atoi(sec), msg);
 }
 
 void do_cmd_set2sAlert()
 {
-    add_timer(timer_set2sAlert,2,"2sAlert");
-}
-
-
-volatile int flag;
-
-void lower_priority_task() {
-    flag = 0;
-    uart_puts("I am lower priority task, running...\r\n");
-    while(flag == 0) {}
-    uart_puts("Lower priority task is now preempted.\r\n");
-}
-
-void high_priority_task() {
-    flag = 1;
-    uart_puts("High priority task is running, preemption successful!\r\n");
-}
-
-void do_cmd_preemption() {    
-    add_timer(high_priority_task, 5,"high priority task");
-    irqtask_add(lower_priority_task, 100);
+    add_timer(timer_set2sAlert, 2, "2sAlert");
 }
 
 void do_cmd_reboot()
@@ -306,3 +297,23 @@ void do_cmd_reboot()
     *wdg_addr = PM_PASSWORD | 5;
 }
 
+
+void do_test_preemptive()
+{
+    add_timer(test_loop, 1, "test loop");
+    add_timer(set_exit, 10, "exit");
+}
+
+volatile int exit = 0;
+void test_loop()
+{
+    uart_sendline("only when exit == 1, we can exit infinite loop.\n");
+    while (exit != 1);
+    uart_sendline("exit loop!\n");
+}
+
+void set_exit()
+{
+    //exit = 1;
+    uart_sendline("We set exit as 1 to exit infinite loop at t = 10s.\n");
+}

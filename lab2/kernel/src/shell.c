@@ -108,7 +108,7 @@ void cli_print_banner()
 {
     uart_puts("\r\n");
     uart_puts("=======================================\r\n");
-    uart_puts("                 Shell                 \r\n");
+    uart_puts("               Terminal                \r\n");
     uart_puts("=======================================\r\n");
 }
 

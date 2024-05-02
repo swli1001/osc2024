@@ -6,7 +6,6 @@
 #include "heap.h"
 
 // DAIF, Interrupt Mask Bits
-// Debug, Asynchronous abort, IRQ, and FIQ 
 void el1_interrupt_enable(){
     __asm__ __volatile__("msr daifclr, 0xf"); // umask all DAIF
 }
@@ -16,31 +15,29 @@ void el1_interrupt_disable(){
 }
 
 void el1h_irq_router(){
-    //static int timer_priorty = 10;
+    static int timer_priority = 10;
     // decouple the handler into irqtask queue
     // (1) https://datasheets.raspberrypi.com/bcm2835/bcm2835-peripherals.pdf - Pg.113
     // (2) https://datasheets.raspberrypi.com/bcm2836/bcm2836-peripherals.pdf - Pg.16
     if(*IRQ_PENDING_1 & IRQ_PENDING_1_AUX_INT && *CORE0_INTERRUPT_SOURCE & INTERRUPT_SOURCE_GPU) // from aux && from GPU0 -> uart exception
-    {     //  BCM2835 ARM Peripherals 13
+    {
         if (*AUX_MU_IIR_REG & (1 << 1)) // FIFO clear bits
         {
-            
             *AUX_MU_IER_REG &= ~(2);  // disable write interrupt
             irqtask_add(uart_w_irq_handler, UART_IRQ_PRIORITY);
             irqtask_run_preemptive(); // run the queued task before returning to the program.
         }
-        else if (*AUX_MU_IIR_REG & (2 << 1)) // Interrut ID bits
+        else if (*AUX_MU_IIR_REG & (2 << 1)) // Interrupt ID bits
         {
             *AUX_MU_IER_REG &= ~(1);  // disable read interrupt
-            irqtask_add(uart_r_irq_handler, UART_IRQ_PRIORITY);
+            irqtask_add(uart_r_irq_handler, timer_priority);
             irqtask_run_preemptive();
         }
     }
     else if(*CORE0_INTERRUPT_SOURCE & INTERRUPT_SOURCE_CNTPNSIRQ)  //from CNTPNS (core_timer) // A1 - setTimeout run in el1
     {
-        // 把正在觸發的timer interrupt 給關掉
         core_timer_disable();
-        irqtask_add(core_timer_handler, TIMER_IRQ_PRIORITY);
+        irqtask_add(core_timer_handler, timer_priority--);
         irqtask_run_preemptive();
         core_timer_enable();
     }
@@ -62,13 +59,13 @@ void el0_irq_64_router(){
     // (2) https://datasheets.raspberrypi.com/bcm2836/bcm2836-peripherals.pdf - Pg.16
     if(*IRQ_PENDING_1 & IRQ_PENDING_1_AUX_INT && *CORE0_INTERRUPT_SOURCE & INTERRUPT_SOURCE_GPU) // from aux && from GPU0 -> uart exception
     {
-        if (*AUX_MU_IIR_REG & (0b01 << 1))
+        if (*AUX_MU_IIR_REG & (0b01 << 1)) //0000 1011 0000 0001 -> 0001 0110 0000 0010
         {
             *AUX_MU_IER_REG &= ~(2);  // disable write interrupt
             irqtask_add(uart_w_irq_handler, UART_IRQ_PRIORITY);
             irqtask_run_preemptive();
         }
-        else if (*AUX_MU_IIR_REG & (0b10 << 1))
+        else if (*AUX_MU_IIR_REG & (0b10 << 1)) // 0000 1011 0001 0000 -> 0001 0110 0010 0000
         {
             *AUX_MU_IER_REG &= ~(1);  // disable read interrupt
             irqtask_add(uart_r_irq_handler, UART_IRQ_PRIORITY);
@@ -123,7 +120,6 @@ void irqtask_add(void *task_function,unsigned long long priority){
     struct list_head *curr;
 
     // mask the device's interrupt line
-    // 更高級中斷
     el1_interrupt_disable();
     // enqueue the processing task to the event queue with sorting.
     list_for_each(curr, task_list)
@@ -143,8 +139,11 @@ void irqtask_add(void *task_function,unsigned long long priority){
     el1_interrupt_enable();
 }
 
-void irqtask_run_preemptive(){
-    extern int flag;
+extern int exit;
+
+void irqtask_run_preemptive()
+{
+    
     el1_interrupt_enable();
     while (!list_empty(task_list))
     {
@@ -153,11 +152,11 @@ void irqtask_run_preemptive(){
         // get next task(highest priority) in list which is sorted by priority
         irqtask_t *the_task = (irqtask_t *)task_list->next;
         // Run new task (early return) if its priority is lower than the scheduled task.
-        // curr is the running task
         if (curr_task_priority <= the_task->priority)
         {
+            exit = 1;
+
             el1_interrupt_enable();
-            flag = 1;
             break;
         }
         // get the scheduled task and run it.
@@ -167,9 +166,10 @@ void irqtask_run_preemptive(){
         curr_task_priority = the_task->priority;
 
         el1_interrupt_enable();
-        irqtask_run(the_task);
-        el1_interrupt_disable();
 
+        irqtask_run(the_task);
+
+        el1_interrupt_disable();
         curr_task_priority = prev_task_priority;
         el1_interrupt_enable();
         free(the_task);
@@ -180,4 +180,3 @@ void irqtask_run(irqtask_t* the_task)
 {
     ((void (*)())the_task->task_function)();
 }
-

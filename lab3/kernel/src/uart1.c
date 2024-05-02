@@ -54,7 +54,7 @@ char uart_recv() {
     r = (char)(*AUX_MU_IO_REG);
     uart_send(r);
     if(r =='\r') {uart_send('\r');uart_send('\n');}
-    return r == '\r' ? '\n' : r;
+    return r=='\r'?'\n':r;
 }
 
 void uart_send(char c) {
@@ -65,9 +65,9 @@ void uart_send(char c) {
 void uart_2hex(unsigned int d) {
     unsigned int n;
     int c;
-    for(c = 28;c >= 0;c -= 4) {
-        n = (d >> c)&0xF;
-        n += n > 9 ? 0x37 : 0x30;
+    for(c=28;c>=0;c-=4) {
+        n=(d>>c)&0xF;
+        n+=n>9?0x37:0x30;
         uart_send(n);
     }
 }
@@ -116,7 +116,7 @@ void uart_async_putc(char c) {
     *AUX_MU_IER_REG |=2;  // enable write interrupt
 }
 
-int uart_puts(char* fmt, ...) {
+int  uart_puts(char* fmt, ...) {
     __builtin_va_list args;
     __builtin_va_start(args, fmt);
     char buf[VSPRINT_MAX_BUF_SIZE];
