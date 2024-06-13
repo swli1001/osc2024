@@ -3,6 +3,7 @@
 
 int str_len(char* str);
 int str_cmp(const char *p1, const char *p2);
+int str_cmp_len(const char *p1, const char *p2, unsigned int len);
 void str_reverse(char* str, int len);
 
 int str_to_int(char *str);

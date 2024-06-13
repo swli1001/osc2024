@@ -35,35 +35,39 @@ void sync(void) {
 
 void irq_from_el0(void) {
     //uart_send_string("IRQ from EL0\r\n");
-    unsigned int irq_src;
-    volatile unsigned int *point = (unsigned int*) CORE0_IRQ_SOURCE;
-    irq_src = *point;
-
-    if(irq_src & (1<<1)) { // Bits[1]: CNTPNSIRQ interrupt
+    disable_el1_interrupt();
+    unsigned int is_timer_irq, is_uart_irq;
+    // judge interrupt source is from timer or uart
+    is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
+    is_uart_irq  = get32(CORE0_IRQ_SOURCE) & (1 << 8);
+    if(is_timer_irq) {
         print_seconds();
-        set_time_out(2);       
+        set_time_out_cmp(2);
     }
-    else if(irq_src & (1<<8)) { // Bits[8]: GPU interrupt, aux interrupt
+    else if(is_uart_irq) {
         if(get32(IRQ_PENDING_1) & (1<<29)) {
             uart_irq_handler();
         }
     }
     else {
-        uart_send_hex(irq_src);
+        uart_send_hex(get32(CORE0_IRQ_SOURCE));
         uart_send_string("\r\n");
         while(1) { asm volatile("nop"); }
     }
+    enable_el1_interrupt();
 }
 
 void irq_from_el1(void) {
-    uart_send_string("IRQ from EL1\r\n");
+    //uart_send_string("IRQ from EL1\r\n");
+    disable_el1_interrupt();
     unsigned int is_timer_irq, is_uart_irq;
     // judge interrupt source is from timer or uart
     is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
     is_uart_irq  = get32(CORE0_IRQ_SOURCE) & (1 << 8);
 
-    if(is_timer_irq) {  }
-    else if(is_uart_irq) { uart_irq_handler(); }
+    if(is_timer_irq) { timer_expire_handler(); }
+    //else if(is_uart_irq) { uart_irq_handler(); }
+    enable_el1_interrupt();
 }
 
 void undefined(void) {

@@ -22,6 +22,22 @@ int str_cmp(const char *p1, const char *p2) {
     return c1 - c2;
 }
 
+int str_cmp_len(const char *p1, const char *p2, unsigned int len) {
+    const unsigned char *s1 = (const unsigned char *) p1;
+    const unsigned char *s2 = (const unsigned char *) p2;
+    unsigned char c1, c2;
+    
+    c1 = (unsigned char) *s1;
+    c2 = (unsigned char) *s2;
+    for(int i = 0; i < len; i++) {
+        if(c1 != c2) { break; }
+        c1 = (unsigned char) *(s1 + i);
+        c2 = (unsigned char) *(s2 + i);
+    }
+
+    return c1 - c2;
+}
+
 void str_reverse(char* str, int len) {
     char tmp;
     for(int i = 0, j = len - 1; i < j; i++, j--) {

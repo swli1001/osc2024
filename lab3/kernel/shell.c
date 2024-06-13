@@ -8,6 +8,7 @@
 #include "str_util.h"
 #include "timer.h"
 #include "peripherals/base.h"
+#include "exception.h"
 
 #define MAX_BUFFER_SIZE 256u
 
@@ -66,6 +67,7 @@ void parse_cmd()
         uart_send_string("malloc:\t\tallocate a continuous space for requested size.\r\n");
         uart_send_string("exec:\t\texecute user program\r\n");
         uart_send_string("async_rw:\t\tasynchronous uart demo\r\n");
+        uart_send_string("setTimeout [msg] [sec]:\t\ttimer multiplexing demo\r\n");
     }
     else if (str_cmp(buffer, "ls") == 0) {
         my_ls();
@@ -116,8 +118,11 @@ void parse_cmd()
         from_el1_to_el0( (unsigned long)prog_addr, (unsigned long)stack_top );
     }
     else if (str_cmp(buffer, "async_rw") == 0) {
-        //void *stack_top = (void*)my_malloc(0x1000);
         from_el1_to_el0( (unsigned long)test_async, 0x120000 );
+    }
+    else if (str_cmp_len(buffer, "setTimeout", 10) == 0) {
+        enable_el1_interrupt();
+        timer_multiplex(buffer);
     }
     else {
         uart_send_string("Command not found! Type help for commands.\r\n");
@@ -127,7 +132,7 @@ void parse_cmd()
 
 void shell() 
 {
-    async_uart_init();
+    timer_queue_ini();
     while (1) {
         uart_send_string("$ ");
         read_cmd();

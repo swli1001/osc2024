@@ -8,15 +8,15 @@
 void kernel_main(void)
 {
 	uart_init();
-
-	uart_send_string("\r\nkernel start\r\n");
+	async_uart_init();
 
 	#ifndef QEMU
 	dev_tree_parser(initramfs_callback);
 	#endif
 
-	// enable_aux_interrupt();
-
+	core_timer_enable();
+	set_time_out_cmp(60000);
+	uart_send_string("\r\nkernel start\r\n");
 	
 	shell();
 }

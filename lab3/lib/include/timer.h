@@ -14,8 +14,12 @@ cntp_tval_el0: (cntp_cval_el0 - cntpct_el0). You can use it to set an expired ti
 #ifndef __ASSEMBLER__
 
 void core_timer_enable();
-void set_time_out(unsigned int sec);
+void set_time_out_cmp(unsigned int sec);
 void print_seconds();
+void timer_queue_ini();
+void timer_multiplex(char *cmd);
+void find_next_expire();
+void timer_expire_handler();
 
 #endif
 

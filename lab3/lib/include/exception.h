@@ -13,6 +13,9 @@ void undefined( void );
 void enable_aux_interrupt();
 void disable_aux_interrupt();
 
+void enable_el1_interrupt();
+void disable_el1_interrupt();
+
 #endif
 
 #endif
