@@ -14,7 +14,7 @@
 #define MEM_START           (0x00000000)
 #define MEM_END             (0x3B400000)
 #define MEM_SIZE            (MEM_END - MEM_START)
-#define FRAME_SIZE          (4096) // 4KB
+#define FRAME_SIZE          (4096) // 4KB, 0x1000
 #define MAX_ORDER           (6) // order = 0 ~ 6
 #define FRAME_NUM           (MEM_SIZE / FRAME_SIZE) // 242688 = 64 * 3792
 #define BUDDY_ARR_LEN       (1 << MAX_ORDER)

@@ -10,6 +10,7 @@
 #include "peripherals/base.h"
 #include "exception.h"
 #include "buddy.h"
+#include "dyn_alloc.h"
 
 #define MAX_BUFFER_SIZE 256u
 
@@ -117,6 +118,8 @@ void parse_cmd()
         uart_send_string("setTimeout [msg] [sec]:\t\ttimer multiplexing demo\r\n");
         uart_send_string("b_alloc: buddy system alloc pages\r\n");
         uart_send_string("b_free: buddy system free a specific address\r\n");
+        uart_send_string("d_alloc: dynamic allocate for requested size\r\n");
+        uart_send_string("d_free: dynamic allocate free a specific address\r\n");
     }
     else if (str_cmp(buffer, "ls") == 0) {
         my_ls();
@@ -129,13 +132,14 @@ void parse_cmd()
     else if (str_cmp(buffer, "malloc") == 0) {
         uart_send_string("Input decimal allocate size: ");
         int msize = get_input_int();
-        char *ptr = my_malloc(msize);
-        for(int i = 0; i < msize - 1; i++) {
-            *(ptr+i) = 'a' + i;
-        }
-        *(ptr + msize - 1) = '\0';
-        uart_send_string(ptr);
-        uart_send_string("\r\n");
+        //char *ptr = my_malloc(msize);
+        char *ptr = malloc(msize);
+        // for(int i = 0; i < msize - 1; i++) {
+        //     *(ptr+i) = 'a' + i;
+        // }
+        // *(ptr + msize - 1) = '\0';
+        // uart_send_string(ptr);
+        // uart_send_string("\r\n");
     }
     else if (str_cmp(buffer, "exec") == 0) {
         void *stack_top = (void*)my_malloc(0x1000); // 4096
@@ -166,6 +170,18 @@ void parse_cmd()
         free_frame((void*)free_addr);
         uart_send_string("\r\n");
     }
+    else if(str_cmp(buffer, "d_alloc") == 0) {
+        uart_send_string("Input decimal dynamic allocate size: ");
+        int msize = get_input_int();
+        char *ptr = alloc_chunk(msize);
+        uart_send_string("\r\n");
+    }
+    else if(str_cmp(buffer, "d_free") == 0) {
+        uart_send_string("Input heximal dynamic free address: ");
+        unsigned long free_addr = get_input_hex();
+        free_chunk((void*)free_addr);
+        uart_send_string("\r\n");
+    }
     else {
         uart_send_string("Command not found! Type help for commands.\r\n");
     }
@@ -175,7 +191,7 @@ void parse_cmd()
 void shell() 
 {
     timer_queue_ini();
-    buddy_init();
+    memory_init();
     while (1) {
         uart_send_string("$ ");
         read_cmd();

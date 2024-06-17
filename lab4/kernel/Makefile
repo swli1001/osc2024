@@ -42,6 +42,7 @@ INC_C_FILES = \
 		../lib/exception.c \
 		../lib/timer.c \
 		../lib/buddy.c \
+		../lib/dyn_alloc.c \
 		
 INC_ASM_FILES = ../lib/mm.S ../lib/utils.S
 INC_OBJ_FILES = $(INC_C_FILES:../lib/%.c=$(BUILD_DIR)/%_c.o)

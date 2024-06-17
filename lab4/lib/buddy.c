@@ -2,11 +2,11 @@
 #include "mini_uart.h"
 #include "str_util.h"
 
-frame_node *frame_list;
-int *frame_status; // -1: free, but it belongs to a larger contiguous memory block, -2: allocated
-int *frame_aord; // list of allocated order
-frame_node* free_list[MAX_ORDER+1] = {0}; // head
-frame_node* free_tail[MAX_ORDER+1] = {0};
+static frame_node *frame_list;
+static int *frame_status; // -1: free, but it belongs to a larger contiguous memory block, -2: allocated
+static int *frame_aord; // list of allocated order
+static frame_node* free_list[MAX_ORDER+1] = {0}; // head
+static frame_node* free_tail[MAX_ORDER+1] = {0};
 
 extern char __end__;
 static char *heap_start_pos = &__end__;
