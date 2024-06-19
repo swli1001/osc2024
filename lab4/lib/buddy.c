@@ -124,10 +124,6 @@ void frame_status_dump() {
 }
 
 void buddy_init() {
-    uart_send_string("frame_node size: ");
-    uart_send_hex((unsigned long)sizeof(frame_node));
-    uart_send_string("\r\n");
-
     frame_list = ini_malloc(sizeof(frame_node) * FRAME_NUM);
     frame_status = ini_malloc(sizeof(int) * FRAME_NUM);
     frame_aord = ini_malloc(sizeof(int) * FRAME_NUM);
@@ -139,7 +135,7 @@ void buddy_init() {
         free_list_insert(&frame_list[i], MAX_ORDER);
     }
     uart_send_string("buddy_init done\r\n");
-    free_list_dump();
+    // free_list_dump();
 }
 
 void* alloc_frame(unsigned int frame_num) {
@@ -188,7 +184,7 @@ void* alloc_frame(unsigned int frame_num) {
         uart_send_string("\r\n");
     }
     
-    for(int s = 0; s < (1<<assign_ord); s++) { frame_status[s+alloc_idx] = FRAME_ALLOCATED; }
+    for(int s = 0; s < (1<<assign_ord); s++) { frame_status[alloc_idx+s] = FRAME_ALLOCATED; }
     frame_aord[alloc_idx] = alloc_ord;
     uart_send_string("[Allocate]: address = 0x");
     uart_send_hex((unsigned long)ret);
@@ -256,4 +252,130 @@ void free_frame(void* addr) {
     }
 }
 
-// void memory_reserve(void* start, void* end)
+/**
+ * memory reservation
+ * reserve_fidx_range, inclusive of end_fidx
+ */
+void reserve_frame_ord(unsigned int fidx, unsigned int order) {
+    unsigned int target_fidx = fidx, buddy_idx;
+    unsigned int target_order = order;
+
+    /**
+     * fidx is already 2^n
+     */
+    while (frame_status[target_fidx] < 0) {
+            target_fidx &= ~(1 << target_order);
+            target_order++;
+    }
+    target_order = frame_status[target_fidx];
+    free_list_delete(&frame_list[target_fidx], frame_status[target_fidx]);
+
+    // uart_send_string("reserve_frame_ord found, idx = ");
+    // uart_send_uint(target_fidx);
+    // uart_send_string(", order = ");
+    // uart_send_uint(target_order);
+    // uart_send_string("\r\n");
+
+    while(target_order > order) {
+        target_order--;
+        buddy_idx = get_buddy_fidx(target_fidx, target_order);
+        // uart_send_string("reserve_frame_ord release, idx = ");
+        if(target_fidx == fidx) { 
+            // request frame is at left side, release right side back to free
+            frame_status[buddy_idx] = target_order;
+            free_list_insert(&frame_list[buddy_idx], target_order);
+            // uart_send_uint(buddy_idx);
+        }
+        else { 
+            // request frame is at right side
+            frame_status[target_fidx] = target_order;
+            free_list_insert(&frame_list[target_fidx], target_order);
+            // uart_send_uint(target_fidx);
+        }
+        // uart_send_string(", order = ");
+        // uart_send_uint(target_order);
+        // uart_send_string("\r\n");
+    }
+
+    for(int s = 0; s < (1<<target_order); s++) { frame_status[target_fidx+s] = FRAME_RESERVED; }
+}
+
+void reserve_fidx_range(unsigned int start_fidx, unsigned int end_fidx, unsigned int order) {
+    // uart_send_string("memory reserve frame index range: ");
+    // uart_send_uint(start_fidx);
+    // uart_send_string(" - ");
+    // uart_send_uint(end_fidx);
+    // uart_send_string(", current order = ");
+    // uart_send_uint(order);
+    // uart_send_string("\r\n");
+
+    /**
+     * Break down if requested size > size of MAX_ORDER blocks
+     */
+    if ((order == MAX_ORDER) && ((end_fidx - start_fidx + 1) >= BUDDY_ARR_LEN)) {
+            unsigned int head_fidx = start_fidx;
+            /**
+             * Allocates the start_fidx to idx before next MAX_ORDER block
+             */
+            if (head_fidx % BUDDY_ARR_LEN != 0) {
+                    head_fidx >>= order;
+                    head_fidx += 1;
+                    head_fidx <<= order;
+                    reserve_fidx_range(start_fidx, head_fidx - 1, order - 1);
+            }
+            /**
+             * Allocates the whole block of MAX_ORDER
+             */
+            while (head_fidx + BUDDY_ARR_LEN <= (end_fidx + 1)) {
+                    reserve_frame_ord(head_fidx, order);
+                    head_fidx += BUDDY_ARR_LEN;
+            }
+            /**
+             * Allocates the remaining part
+             */
+            if (head_fidx <= end_fidx) {
+                reserve_fidx_range(head_fidx, end_fidx, order - 1);
+            }
+            return;
+    }
+    /**
+     * Allocates if requested range fits the size of current order
+     */
+    if (start_fidx % (1 << order) == 0 && (end_fidx + 1) % (1 << order) == 0) {
+            reserve_frame_ord(start_fidx, order);
+            return;
+    }
+    /**
+     * Allocates block of a smaller order
+     */
+    order -= 1;
+    unsigned int second_id = start_fidx;
+    second_id >>= order;
+    second_id += 1;
+    second_id <<= order;
+    if (start_fidx >= second_id || end_fidx < second_id) {
+            reserve_fidx_range(start_fidx, end_fidx, order);
+            return;
+    }
+    /**
+     * Breaks down if it lays across to blocks of current order
+     */
+    reserve_fidx_range(start_fidx, second_id - 1, order);
+    reserve_fidx_range(second_id, end_fidx, order);
+}
+
+void dump_reservation() {
+    unsigned int res_flag = 0;
+    for(int i = 0; i < FRAME_NUM; i++) {
+        if(res_flag == 0 && frame_status[i] == FRAME_RESERVED) {
+            res_flag = 1;
+            uart_send_uint(i);
+            uart_send(' ');
+        }
+        else if(res_flag == 1 && frame_status[i] != FRAME_RESERVED) {
+            res_flag = 0;
+            uart_send_uint(i-1);
+            uart_send_string("\r\n");
+        }
+    }
+}

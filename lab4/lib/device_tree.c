@@ -9,7 +9,9 @@ void get_dtb_addr() {
     asm volatile("MOV %[addr], x25" : [addr] "=r" (DTB_ADDR));
     struct fdt_header *header = (struct fdt_header*) DTB_ADDR;
     if(swap_endian(header->magic) == FDT_HEADER_MAGIC) { uart_send_string("magic same check\r\n"); }
-
+    uart_send_string("DTB_ADDR = 0x");
+    uart_send_hex((unsigned long)DTB_ADDR);
+    uart_send_string("\r\n");
     struct_ptr = DTB_ADDR + swap_endian(header->off_dt_struct);
     if(swap_endian(*((unsigned int *)struct_ptr)) == FDT_BEGIN_NODE) { uart_send_string("first node same check\r\n"); }
 

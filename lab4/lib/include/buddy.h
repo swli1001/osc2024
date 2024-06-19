@@ -19,6 +19,9 @@
 #define FRAME_NUM           (MEM_SIZE / FRAME_SIZE) // 242688 = 64 * 3792
 #define BUDDY_ARR_LEN       (1 << MAX_ORDER)
 
+#define MAX_CHUNK_SIZE 1024
+#define MAX_RESERVE_NUM 8 
+
 /** 
  * page status
  * >= 0 -> allocable, contiguous memory.  size = (2^val) * frame_size
@@ -35,14 +38,17 @@ typedef struct frame_node {
     struct frame_node *next;
 } frame_node;
 
-void* ini_malloc(unsigned int msize);
-// void* get_physical_addr(void *addr);
-// void* get_logical_addr(void *addr);
+unsigned int addr_to_fidx(void* real_addr);
 
+void* ini_malloc(unsigned int msize);
 void buddy_init();
+
+void frame_status_dump();
+
 void* alloc_frame(unsigned int frame_num);
 void free_frame(void* addr);
 // void memory_reserve(void* start, void* end);
-void frame_status_dump();
+void reserve_fidx_range(unsigned int start_fidx, unsigned int end_fidx, unsigned int order);
+void dump_reservation();
 
 #endif
