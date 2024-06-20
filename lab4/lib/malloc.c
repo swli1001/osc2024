@@ -44,6 +44,11 @@ void memory_init() {
     memory_reserve((void*)0x0, (void*)0x120000); // spin tables, kernel image
     memory_reserve((void*)0x20000000, (void*)0x20001000); // config.txt hard coded initramfs
     memory_reserve((void*)0x2EFF7A00, (void*)0x2EFFFA00);
+    /**
+     * @todo 
+     * initramfs can be determined by device tree access initrd-start, initrd-end
+     * device tree size can be determined by "totalsize" in fdt_header
+     */
 
     process_memory_reserve();
 }

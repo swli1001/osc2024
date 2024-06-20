@@ -253,8 +253,7 @@ void free_frame(void* addr) {
 }
 
 /**
- * memory reservation
- * reserve_fidx_range, inclusive of end_fidx
+ * @brief Memory Reservation
  */
 void reserve_frame_ord(unsigned int fidx, unsigned int order) {
     unsigned int target_fidx = fidx, buddy_idx;
@@ -281,7 +280,9 @@ void reserve_frame_ord(unsigned int fidx, unsigned int order) {
         buddy_idx = get_buddy_fidx(target_fidx, target_order);
         // uart_send_string("reserve_frame_ord release, idx = ");
         if(target_fidx == fidx) { 
-            // request frame is at left side, release right side back to free
+            /**
+             * request frame is at left side, release right side back to free
+             */
             frame_status[buddy_idx] = target_order;
             free_list_insert(&frame_list[buddy_idx], target_order);
             // uart_send_uint(buddy_idx);
@@ -300,6 +301,9 @@ void reserve_frame_ord(unsigned int fidx, unsigned int order) {
     for(int s = 0; s < (1<<target_order); s++) { frame_status[target_fidx+s] = FRAME_RESERVED; }
 }
 
+/**
+ * reserve_fidx_range, inclusive of end_fidx
+ */
 void reserve_fidx_range(unsigned int start_fidx, unsigned int end_fidx, unsigned int order) {
     // uart_send_string("memory reserve frame index range: ");
     // uart_send_uint(start_fidx);
