@@ -6,6 +6,8 @@
 #define PATHNAME_MAX_LEN    256
 #define MAX_OPEN_FD         16
 
+#define O_CREAT 00000100
+
 /**
  * vnode: an abstract class that provides an unified interface
  * methods & creating instance is done by underlying file system (tmpfs)

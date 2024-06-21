@@ -119,15 +119,7 @@ int tmpfs_open(struct vnode* file_node, struct file** target) {
      * It opens the vnode regardless of the underlying file system and file type, 
      * and creates a file handle for the file.
      */
-
-    struct file* new_file_handle = (struct file*)alloc_chunk(sizeof(struct file));
-    if(new_file_handle == (struct file*)0) { return TMPFS_OPEN_ALLOC_FAIL; }
-    new_file_handle->vnode = file_node;
-    new_file_handle->f_pos = 0;  // RW position of this file handle
-    new_file_handle->f_ops = file_node->f_ops;
-    // new_file_handle->flags;
-    target = &new_file_handle;
-    
+    // creating file handle is done by vfs    
 
     return TMPFS_OPEN_SUCCESS;
 }
