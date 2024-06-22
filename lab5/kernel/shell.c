@@ -11,6 +11,7 @@
 #include "exception.h"
 #include "buddy.h"
 #include "dyn_alloc.h"
+#include "thread.h"
 
 #define MAX_BUFFER_SIZE 256u
 
@@ -90,6 +91,24 @@ unsigned long get_input_hex() {
     return hexstr_to_int(asize_i);
 }
 
+void send_help_msg() {
+    uart_send_string("help:\t\tprint list of available commands\r\n");
+    uart_send_string("hello:\t\tprint Hello World!\r\n");
+    uart_send_string("reboot:\t\treboot the device\r\n");
+    uart_send_string("hwinfo:\t\tprint hardware information\r\n");
+    uart_send_string("ls:\t\tlist out files in cpio archive\r\n");
+    uart_send_string("cat:\t\tshow the content in the input file\r\n");
+    uart_send_string("malloc:\t\tallocate a continuous space for requested size.\r\n");
+    uart_send_string("exec:\t\texecute user program\r\n");
+    uart_send_string("async_rw:\t\tasynchronous uart demo\r\n");
+    uart_send_string("setTimeout [msg] [sec]:\t\ttimer multiplexing demo\r\n");
+    uart_send_string("b_alloc:\t\tbuddy system alloc pages\r\n");
+    uart_send_string("b_free:\t\tbuddy system free a specific address\r\n");
+    uart_send_string("d_alloc:\t\tdynamic allocate for requested size\r\n");
+    uart_send_string("d_free:\t\tdynamic allocate free a specific address\r\n");
+    uart_send_string("thread_test:\t\tlab5 basic 1 demo\r\n");
+}
+
 void parse_cmd()
 {
 
@@ -106,20 +125,7 @@ void parse_cmd()
         get_arm_memory();
     }
     else if (str_cmp(buffer, "help") == 0) {
-        uart_send_string("help:\t\tprint list of available commands\r\n");
-        uart_send_string("hello:\t\tprint Hello World!\r\n");
-        uart_send_string("reboot:\t\treboot the device\r\n");
-        uart_send_string("hwinfo:\t\tprint hardware information\r\n");
-        uart_send_string("ls:\t\tlist out files in cpio archive\r\n");
-        uart_send_string("cat:\t\tshow the content in the input file\r\n");
-        uart_send_string("malloc:\t\tallocate a continuous space for requested size.\r\n");
-        uart_send_string("exec:\t\texecute user program\r\n");
-        uart_send_string("async_rw:\t\tasynchronous uart demo\r\n");
-        uart_send_string("setTimeout [msg] [sec]:\t\ttimer multiplexing demo\r\n");
-        uart_send_string("b_alloc: buddy system alloc pages\r\n");
-        uart_send_string("b_free: buddy system free a specific address\r\n");
-        uart_send_string("d_alloc: dynamic allocate for requested size\r\n");
-        uart_send_string("d_free: dynamic allocate free a specific address\r\n");
+        send_help_msg();
     }
     else if (str_cmp(buffer, "ls") == 0) {
         my_ls();
@@ -182,6 +188,9 @@ void parse_cmd()
         free_chunk((void*)free_addr);
         uart_send_string("\r\n");
     }
+    else if(str_cmp(buffer, "thread_test") == 0) {
+        thread_test();
+    }
     else {
         uart_send_string("Command not found! Type help for commands.\r\n");
     }
@@ -190,8 +199,6 @@ void parse_cmd()
 
 void shell() 
 {
-    timer_queue_ini();
-    memory_init();
     while (1) {
         uart_send_string("$ ");
         read_cmd();

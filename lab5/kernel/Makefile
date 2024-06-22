@@ -43,8 +43,9 @@ INC_C_FILES = \
 		../lib/timer.c \
 		../lib/buddy.c \
 		../lib/dyn_alloc.c \
+		../lib/thread.c \
 		
-INC_ASM_FILES = ../lib/mm.S ../lib/utils.S
+INC_ASM_FILES = ../lib/mm.S ../lib/utils.S ../lib/thread.S
 INC_OBJ_FILES = $(INC_C_FILES:../lib/%.c=$(BUILD_DIR)/%_c.o)
 INC_OBJ_FILES += $(INC_ASM_FILES:../lib/%.S=$(BUILD_DIR)/%_s.o)
 
