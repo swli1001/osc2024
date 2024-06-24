@@ -6,17 +6,20 @@
 
 #define NULL (void*)0xFFFFFFFFFFFFFFFF
 
-// extern struct cpu_context *current; // always points to the currently executing task
-static struct cpu_context * task[TASK_MAX_NUM];
+// extern struct thread_context *current; // always points to the currently executing task
+static struct thread_context * task[TASK_MAX_NUM];
 // static int nr_tasks; // contains the number of currently running tasks in the system
-static struct cpu_context *run_queue_head, *run_queue_tail;
+static struct thread_context *run_queue_head, *run_queue_tail;
+
+#define FIRST_TASK task[0]
+#define LAST_TASK task[TASK_MAX_NUM-1]
 
 void thread_init() {
     for (int i = 0; i < TASK_MAX_NUM; i++) {
             task[i] = NULL;
     }
 
-    struct cpu_context *new_thread = alloc_frame(1);
+    struct thread_context *new_thread = alloc_frame(1);
     new_thread->id = 0;
     new_thread->next = NULL;
     new_thread->is_dead = 0;
@@ -31,10 +34,10 @@ void thread_init() {
 void thread_wrapper() {
     asm volatile("blr x19"); // branch to thread_func
 
-    struct cpu_context *current_thread = get_current_thread();
+    struct thread_context *current_thread = get_current_thread();
     current_thread->is_dead = 1;
 
-    schedule();
+    thread_schedule();
 
     while (1) {}
 }
@@ -48,7 +51,7 @@ int thread_create(void (*thread_func)(void)) {
             return -1;
     }
 
-    struct cpu_context *new_thread = alloc_frame(1);
+    struct thread_context *new_thread = alloc_frame(1);
     new_thread->reg.x19 = (unsigned long)thread_func;
     new_thread->lr = (unsigned long)thread_wrapper;
     new_thread->sp = (unsigned long)new_thread + FRAME_SIZE;
@@ -64,18 +67,18 @@ int thread_create(void (*thread_func)(void)) {
     return id;
 }
 
-void schedule() {
+void thread_schedule() {
     if (run_queue_head == NULL) {
         asm volatile("ldr x0, =_start");
         asm volatile("mov sp, x0");
         asm volatile("bl shell");
     }
 
-    struct cpu_context *next_thread = run_queue_head;
+    struct thread_context *next_thread = run_queue_head;
     run_queue_head = next_thread->next;
     next_thread->next = NULL;
 
-    struct cpu_context *current_thread = get_current_thread();
+    struct thread_context *current_thread = get_current_thread();
     if (current_thread->is_dead) { // kill_zombies()
         task[current_thread->id] = NULL;
         free_frame(current_thread);
@@ -86,21 +89,21 @@ void schedule() {
         run_queue_tail->next = current_thread;
         run_queue_tail = current_thread;
     }
-    cpu_switch_to(current_thread, next_thread);
+    thread_context_switch(current_thread, next_thread);
 }
 
 void idle(void)
 {
     while (1) {
         // kill_zombies(); // reclaim threads marked as DEAD
-        schedule(); // switch to any other runnable thread
+        thread_schedule(); // switch to any other runnable thread
     }
 }
 
 /**
  * DEMO
  */
-void foo(){
+void thread_foo(){
     for(int i = 0; i < 10; ++i) {
         // printf("Thread id: %d %d\n", current->id, i);
         uart_send_string("Thread id: ");
@@ -109,13 +112,13 @@ void foo(){
         uart_send_uint(i);
         uart_send_string("\r\n");
         delay(1000000);
-        schedule();
+        thread_schedule();
     }
 }
 
 void thread_test() {
     for(int i = 0; i < 3; ++i) { // N should > 2
-        thread_create(foo);
+        thread_create(thread_foo);
     }
     idle();
 }

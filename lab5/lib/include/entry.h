@@ -1,5 +1,5 @@
-#ifndef __ENTRY_H
-#define __ENTRY_H
+#ifndef _ENTRY_H
+#define _ENTRY_H
 
 #define S_FRAME_SIZE			272 		// size of all saved registers 
 #define S_X0                    0

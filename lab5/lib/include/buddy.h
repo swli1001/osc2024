@@ -38,6 +38,8 @@ typedef struct frame_node {
     struct frame_node *next;
 } frame_node;
 
+static unsigned int memory_logging;
+
 unsigned int addr_to_fidx(void* real_addr);
 
 void* ini_malloc(unsigned int msize);

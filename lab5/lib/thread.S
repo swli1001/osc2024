@@ -1,5 +1,5 @@
-.global cpu_switch_to
-cpu_switch_to:
+.global thread_context_switch
+thread_context_switch:
     stp x19, x20, [x0, 16 * 0]
     stp x21, x22, [x0, 16 * 1]
     stp x23, x24, [x0, 16 * 2]

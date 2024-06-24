@@ -9,6 +9,14 @@
 #define C_MAGIC "070701"
 #define ARCHIVE_END ((char*)"TRAILER!!!")
 
+// #ifndef QEMU
+extern void *DTB_LOAD_POS;
+// #endif
+
+// #ifdef QEMU
+// void *DTB_LOAD_POS = QEMU_LOAD_POS;
+// #endif
+
 //#define QEMU
 
 struct cpio_newc_header {

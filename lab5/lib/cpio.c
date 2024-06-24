@@ -3,13 +3,7 @@
 #include "str_util.h"
 #include "malloc.h"
 
-#ifndef QEMU
-void *DTB_LOAD_POS;
-#endif
-
-#ifdef QEMU
-void *DTB_LOAD_POS = QEMU_LOAD_POS;
-#endif
+void *DTB_LOAD_POS = 0;
 
 #ifndef QEMU
 void initramfs_callback(char *node_name, char *prop_name, struct fdt_lex_prop *prop) {

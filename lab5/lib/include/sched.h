@@ -1,33 +1,28 @@
-#ifndef __SCHED_H
-#define __SCHED_H
+#ifndef _SCHED_H
+#define _SCHED_H
 
-#define THREAD_CPU_CONTEXT			0 		// offset of cpu_context in task_struct 
+#define THREAD_CPU_CONTEXT      0
 
 #ifndef __ASSEMBLER__
 
-#define THREAD_SIZE				4096
+#define THREAD_SIZE             4096
 
-#define TASK_MAX_NUM				64 
+#define NR_TASKS                64
 
-#define FIRST_TASK task[0]
-#define LAST_TASK task[TASK_MAX_NUM-1]
+#define FIRST_TASK              task[0]
+#define LAST_TASK               task[NR_TASKS-1]
 
-#define TASK_RUNNING				0
+#define TASK_RUNNING            0
+#define TASK_INTERRUPTIBLE	    1
+#define TASK_UNINTERRUPTIBLE	2
+#define TASK_ZOMBIE		        3
+#define TASK_STOPPED		    4
 
-extern struct task_struct *current; // always points to the currently executing task
-extern struct task_struct * task[TASK_MAX_NUM];
-extern int nr_tasks; // contains the number of currently running tasks in the system
+#define PF_KTHREAD              0x00000002
 
-/**
- * in Linux, both thread and processes are just different types of tasks
- * 
- * cpu_context
- *      contains all registers that might be different between the switched tasks
- *      ARM calling convention: x0 - x18 can be overwritten by the called function
- * 
- * task_struct
- *      a struct that describes a process
- */
+extern struct task_struct *current;
+extern struct task_struct * task[NR_TASKS];
+extern int nr_tasks;
 
 struct cpu_context {
 	unsigned long x19;
@@ -40,35 +35,35 @@ struct cpu_context {
 	unsigned long x26;
 	unsigned long x27;
 	unsigned long x28;
-	unsigned long fp;   // x29
+	unsigned long fp;
 	unsigned long sp;
-	unsigned long pc;   // x30
+	unsigned long pc;
 };
 
 struct task_struct {
 	struct cpu_context cpu_context;
-	long state;	// the state of the currently running task, support TASK_RUNNING
-	long counter; // decreases by 1 each timer tick and when it reaches 0 another task is scheduled
-	long priority; // When a new task is scheduled its priority is copied to counter
-	long preempt_count; // if != 0 -> critical section, timer tick ignored, reschedule not triggered
-    long id; // self add
+	long state;	
+	long counter;		//round robin
+	long priority;
+	long preempt_count;
+	unsigned long stack;
+	unsigned long flags;
+    long id;
 };
 
-extern void sched_init(void);
-extern void schedule(void);
-extern void timer_tick(void);
-extern void preempt_disable(void);
-extern void preempt_enable(void);
-extern void switch_to(struct task_struct* next);
-extern void cpu_switch_to(struct task_struct* prev, struct task_struct* next);
+extern void sched_init();
+extern void schedule();
+extern void timer_tick();
+extern void preempt_disable();
+extern void preempt_enable();
+extern void switch_to(struct task_struct *);
+extern void cpu_switch_to(struct task_struct *, struct task_struct *);
+extern void exit_process();
+extern void kill_zombies();
 
-/**
- * INIT_TASK: the one that runs kernel_main function
- * the only one task running after the kernel startup
- */
 #define INIT_TASK \
 /*cpu_context*/	{ {0,0,0,0,0,0,0,0,0,0,0,0,0}, \
-/* state etc */	0,0,1, 0 \
+/* state etc */	0,0,1, 0, 0, PF_KTHREAD \
 }
 
 #endif

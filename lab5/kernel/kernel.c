@@ -7,6 +7,7 @@
 #include "timer.h"
 #include "malloc.h"
 #include "thread.h"
+#include "fork.h"
 
 void kernel_main(void)
 {
@@ -19,11 +20,11 @@ void kernel_main(void)
 
 	core_timer_enable();
 	set_time_out_cmp(60000);
-	// uart_send_string("\r\nkernel start\r\n");
+	uart_send_string("\r\nkernel start\r\n");
 
 	timer_queue_ini();
     memory_init();
     thread_init();
-	
+
 	shell();
 }

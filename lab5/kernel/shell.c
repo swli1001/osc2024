@@ -1,7 +1,8 @@
 #include "shell.h"
 #include "mini_uart.h"
 #include "utils.h"
-#include "mailbox.h"
+// #include "mailbox.h"
+#include "peripherals/mailbox.h"
 #include "reboot.h"
 #include "cpio.h"
 #include "malloc.h"
@@ -12,8 +13,12 @@
 #include "buddy.h"
 #include "dyn_alloc.h"
 #include "thread.h"
+#include "sched.h"
+#include "sys_call.h"
+#include "fork.h"
 
 #define MAX_BUFFER_SIZE 256u
+#define NULL (void*)0
 
 extern void from_el1_to_el0(unsigned long prog_addr, unsigned long stack_top);
 
@@ -22,6 +27,8 @@ static char buffer[MAX_BUFFER_SIZE];
 extern void async_uart_send_string(char *str);
 extern void async_uart_init();
 extern void test_async();
+
+static int shared = 1;
 
 void read_cmd()
 {
@@ -107,6 +114,8 @@ void send_help_msg() {
     uart_send_string("d_alloc:\t\tdynamic allocate for requested size\r\n");
     uart_send_string("d_free:\t\tdynamic allocate free a specific address\r\n");
     uart_send_string("thread_test:\t\tlab5 basic 1 demo\r\n");
+    uart_send_string("fork_test:\t\tlab5 basic 2 demo\r\n");
+    uart_send_string("el:\t\tshow current exception level\r\n");
 }
 
 void parse_cmd()
@@ -190,6 +199,17 @@ void parse_cmd()
     }
     else if(str_cmp(buffer, "thread_test") == 0) {
         thread_test();
+    }
+    else if(str_cmp(buffer, "fork_test") == 0) {
+        enable_el1_interrupt();
+        copy_process(PF_KTHREAD, (unsigned long)&new_user_process, (unsigned long)&fork_test, 0);
+    }
+    else if(str_cmp(buffer, "el") == 0) {
+        unsigned long el;
+        asm volatile("mrs %0, CurrentEL" : "=r"(el));
+        uart_send_string("Current EL is: ");
+        uart_send_uint((el>>2)&3);
+        uart_send_string("\r\n");
     }
     else {
         uart_send_string("Command not found! Type help for commands.\r\n");
