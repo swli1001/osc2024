@@ -39,62 +39,49 @@ unsigned sys_uartwrite(const char buf[], unsigned size){
 }
 
 int sys_exec(const char *name, char *const argv[]) {
-    struct cpio_newc_header *header;
-    unsigned int filesize;
-    unsigned int namesize;
-    unsigned int offset;
+    struct cpio_newc_header * buf = DTB_LOAD_POS;
     char *filename;
+    int namesize, filesize;
+    int blocksize;
     void *code_loc;
 
-    header = DTB_LOAD_POS;
-    while (1) {
-        
-        filename = ((void*)header) + sizeof(struct cpio_newc_header);
-        
-        if (str_cmp((char*)header, C_MAGIC) != 0) {
-            uart_send_string("invalid magic\n");
-            break;
-        }
-        if (str_cmp(filename, ARCHIVE_END) == 0) {
-            uart_send_string("file does not exist!\n");
-            break;
-        }
+    while(1) {
+        filename = (char*)buf + HEADER_SIZE;
+        if(str_cmp(filename, ARCHIVE_END) == 0) { break; }
 
-        namesize = hexstr_to_int(header->c_namesize);
-        
-        offset = sizeof(struct cpio_newc_header) + namesize;
-        if (offset % 4 != 0) 
-            offset = ((offset/4) + 1) * 4;
+        filesize = hexstr_to_int(buf->c_filesize);
+        namesize = hexstr_to_int(buf->c_namesize);
 
-        filesize = hexstr_to_int(header->c_filesize);
+        blocksize = HEADER_SIZE + namesize;
+        if (blocksize % 4 != 0) { blocksize += 4 - (blocksize % 4); }
 
-        if (str_cmp_len(filename, name, namesize) == 0) {
-            code_loc = ((void*)header) + offset;
+        if(str_cmp_len(filename, name, namesize) == 0) {
+            code_loc = ((void*)buf) + blocksize;
             break;
         }
 
-        if (filesize % 4 != 0)
-            filesize = ((filesize/4) + 1) * 4;
+        if (filesize % 4 != 0) { filesize += 4 - (filesize % 4); }
+        blocksize += filesize;
 
-        offset = offset + filesize;
-
-        header = ((void*)header) + offset;
-        
+        buf = (void*)buf + blocksize;
     }
 
-    void *move_loc = malloc(filesize + 4096); // an extra page for bss just in case
-    if(move_loc == NULL) return -1;
-    for (int i=0; i<filesize; i++) {
-        ((char*)move_loc)[i] = ((char*)code_loc)[i];
+    int page_cnt = filesize / FRAME_SIZE;
+    if(filesize % FRAME_SIZE) { page_cnt++; }
+
+    currentTask->exePage = alloc_frame(page_cnt);
+    currentTask->exePage_num = page_cnt;
+    if(currentTask->exePage == (void*)0) return -1;
+    for (int i = 0; i < filesize; i++) {
+        ((char*)currentTask->exePage)[i] = ((char*)code_loc)[i];
     }
-    preempt_disable();
 
-    // free old program location
-    struct pt_regs *p = task_pt_regs(current);
-    p->elr_el1 = (unsigned long)move_loc; // move to beginning of program
-    p->sp_el0 = current->stack+FRAME_SIZE;
-
-    preempt_enable();
+    disable_preempt();
+    struct el0_regs *trap_frame = (struct el0_regs*)(currentTask->kernelStackPage
+                                    + FRAME_SIZE - sizeof(struct el0_regs));
+    trap_frame->elr_el1 = (unsigned long)currentTask->exePage;
+    trap_frame->sp_el0 = (unsigned long)currentTask->userStackPage + 4*FRAME_SIZE;
+    enable_preempt();
 
     return -1; // only on failure
 }
@@ -123,7 +110,7 @@ int sys_mbox_call(unsigned char ch, unsigned int *mbox) {
 void sys_kill(int pid){
     struct task_struct *p;
     for (int i = 0; i < MAX_TASKS; i++){
-        if(tasks[i].state != eFree) continue;
+        if(tasks[i].state == eFree) continue;
 
         if(tasks[i].pid == (unsigned long)pid){
             disable_preempt();

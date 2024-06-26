@@ -12,7 +12,7 @@
 struct taskControlBlock tasks[MAX_TASKS];
 int taskCount;
 struct taskControlBlock *currentTask;
-int preemptable;
+int preemptable = 1;
 
 struct list readylist;
 struct listItem taskListItem[MAX_TASKS];
@@ -38,10 +38,10 @@ struct taskControlBlock* addTask(void (*func)(), int priority) {
     tsk->pid = freeTaskIdx;
     tsk->priority = priority;
     tsk->state = eReady;
-    tsk->userStackPage = NULL;
+    tsk->userStackPage = alloc_frame(1);
     tsk->kernelStackPage = alloc_frame(1);
-    tsk->userStackExp = -1;
-    tsk->exePageExp = 0;
+    tsk->exePage = (void*)NULL;
+    tsk->exePage_num = 0;
     tsk->regs.lr = (unsigned long)func;
     tsk->regs.sp = (unsigned long)tsk->kernelStackPage + FRAME_SIZE;
 
@@ -58,7 +58,9 @@ static void killZombies() {
         uart_send_string("[Task] Killing ");
         uart_send_uint(i);
         uart_send_string("\r\n");
-        free_frame(tasks[i].kernelStackPage);
+        if (tasks[i].kernelStackPage != NULL) {
+          free_frame(tasks[i].kernelStackPage);
+        }        
         if (tasks[i].userStackPage != NULL) {
           free_frame(tasks[i].userStackPage);
         }
@@ -96,11 +98,6 @@ int initIdleTask() {
     return currentTask->pid;
 }
 
-void reset_timer() {
-    unsigned long cpu_freq = get_cpu_freq();
-    set_time_out_cmp(cpu_freq >> 5);
-}
-
 void startScheduler() {
     initIdleTask();
     
@@ -113,37 +110,26 @@ void startScheduler() {
 
 void schedule() {
     // critical section begin
-      preemptable = 0;
-      if(readylist.itemCount == 0) {
-          uart_send_string("readylist empty\r\n");
-          preemptable = 1;
-          asm volatile( "ldr x0, =_start" );
-          asm volatile( "mov sp, x0" );
-          asm volatile( "bl shell" );
-      }
-      struct listItem *fstItem = readylist.first;
-      struct taskControlBlock *newTsk = fstItem->data;
-      struct taskControlBlock *oldTsk = currentTask;
-      newTsk->state = eRunning;
-      listRemoveItem(&readylist, fstItem);
-      if (oldTsk->state == eRunning) {
-          oldTsk->state = eReady;
-          listAppend(&readylist, &taskListItem[oldTsk->pid]);
-      }
-      currentTask = newTsk;
-      context_switch(oldTsk, newTsk);
-      preemptable = 1;
-}
-
-void timerInterruptHandler() {
-    reset_timer();
-    if (!preemptable) {
-      uart_send_string("not preemptable\n");
-      return;
+    preemptable = 0;
+    if(readylist.itemCount == 0) {
+        uart_send_string("readylist empty\r\n");
+        preemptable = 1;
+        asm volatile( "ldr x0, =_start" );
+        asm volatile( "mov sp, x0" );
+        asm volatile( "bl shell" );
     }
-    enable_irq();
-    schedule();
-    disable_irq();
+    struct listItem *fstItem = readylist.first;
+    struct taskControlBlock *newTsk = fstItem->data;
+    struct taskControlBlock *oldTsk = currentTask;
+    newTsk->state = eRunning;
+    listRemoveItem(&readylist, fstItem);
+    if (oldTsk->state == eRunning) {
+        oldTsk->state = eReady;
+        listAppend(&readylist, &taskListItem[oldTsk->pid]);
+    }
+    currentTask = newTsk;
+    context_switch(oldTsk, newTsk);
+    preemptable = 1;
 }
 
 void startInEL0(unsigned long pc) {

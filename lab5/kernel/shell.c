@@ -114,16 +114,28 @@ void send_help_msg() {
     uart_send_string("d_free:\t\tdynamic allocate free a specific address\r\n");
     uart_send_string("thread_test:\t\tlab5 basic 1 demo\r\n");
     uart_send_string("fork_test:\t\tlab5 basic 2 demo\r\n");
+    uart_send_string("video:\t\tsyscall.img demo\r\n");
     uart_send_string("el:\t\tshow current exception level\r\n");
 }
 
 static void demo_fork() {
     uart_send_string("start fork_test\n");
     startInEL0((unsigned long)fork_test);
+    currentTask->state = eTerminated;
+}
+
+static void load_syscall_img() {
+    uart_send_string("userspace program start\r\n");
+    exec("syscall.img");
 }
 
 static void demo_video() {
-
+    unsigned long tmp;
+    asm volatile("mrs %0, cntkctl_el1" : "=r"(tmp));
+    tmp |= 1;
+    asm volatile("msr cntkctl_el1, %0" : : "r"(tmp));
+    add_timer(timerInterruptHandler, "", 5);
+    startInEL0(load_syscall_img);
 }
 
 void parse_cmd()
@@ -207,10 +219,13 @@ void parse_cmd()
     }
     else if(str_cmp(buffer, "thread_test") == 0) {
         thread_test();
-        // thread_start_el0((unsigned long)thread_test);
     }
     else if(str_cmp(buffer, "fork_test") == 0) {
         addTask(demo_fork, 1);
+        startScheduler();
+    }
+    else if(str_cmp(buffer, "video") == 0) {
+        addTask(demo_video, 1);
         startScheduler();
     }
     else if(str_cmp(buffer, "el") == 0) {

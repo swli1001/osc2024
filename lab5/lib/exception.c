@@ -32,6 +32,8 @@ void sync(void) {
     uart_send_string("SPSR_EL1: 0x");
     uart_send_hex(spsr_el1);
     uart_send_string("\r\n\r\n");
+
+    while(1) {} // for lab5, sync() should not be executed
 }
 
 void irq_from_el0(void) {

@@ -26,11 +26,11 @@ struct el1_regs {
     unsigned long sp_el0;
 };
 
-struct el0_regs {
+struct el0_regs { // trap frame, placed kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs)
     unsigned long general_purpose[31];
     unsigned long elr_el1;
     unsigned long spsr_el1;
-    unsigned long padding;
+    unsigned long sp_el0;
 };
 
 struct taskControlBlock {
@@ -40,13 +40,13 @@ struct taskControlBlock {
     eTaskState state;
     void* kernelStackPage;
     void* userStackPage;
-    int userStackExp;
-    int exePageExp;
-    void* exePage;
+    void* exePage; // store .img file content
+    unsigned int exePage_num;
 };
 
 extern struct taskControlBlock tasks[MAX_TASKS];
 extern struct taskControlBlock *currentTask;
+extern int preemptable;
 
 int getCurrentPid();
 struct taskControlBlock* addTask(void (*func)(), int priority);

@@ -14,7 +14,7 @@ extern struct taskControlBlock *currentTask;
 void forkProcedureForChild() {
     enable_preempt();
     struct el0_regs *trap_frame = (struct el0_regs*)(currentTask->kernelStackPage
-                                                    + FRAME_SIZE - sizeof(struct el0_regs));
+                                                    + FRAME_SIZE - sizeof(struct el0_regs));    
     trap_frame->general_purpose[0] = 0;
     disable_el1_interrupt();
     asm volatile("mov sp, %0\n\t"
@@ -29,7 +29,7 @@ int copyCurrentTask() {
     unsigned long spel0, elr_el1;
     
     asm volatile("mrs %0, sp_el0\n\t"
-                "mrs %1, elr_el1" : "=r"(spel0), "=r"(elr_el1));
+                 "mrs %1, elr_el1" : "=r"(spel0), "=r"(elr_el1));
     
     unsigned long sp_offset = spel0 - (unsigned long)currentTask->userStackPage;
     newTask->userStackPage = alloc_frame(4);
@@ -43,12 +43,30 @@ int copyCurrentTask() {
     newTask->regs.sp = (unsigned long)newTask->kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs);
     newTask->regs.sp_el0 = (unsigned long)newTask->userStackPage + sp_offset;
 
+    // copy userstack
+    for(int i = 0; i < FRAME_SIZE; i++) { 
+        ((char*)newTask->userStackPage)[i] = ((char*)currentTask->userStackPage)[i]; 
+    }
+    // copy kernelstack
+    for(int i = 0; i < FRAME_SIZE; i++) { 
+        ((char*)newTask->kernelStackPage)[i] = ((char*)currentTask->kernelStackPage)[i]; 
+    }
+    // copy exePage
+    if(currentTask->exePage_num != 0) {
+        newTask->exePage = alloc_frame(currentTask->exePage_num);
+        newTask->exePage_num = currentTask->exePage_num;
+        for(int i = 0; i < currentTask->exePage_num; i++) {
+            ((char*)newTask->exePage)[i] = ((char*)currentTask->exePage)[i]; 
+        }
+    }
     // copy trapframe
     struct el0_regs *curTrapFrame = (struct el0_regs*)(currentTask->kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs));
     struct el0_regs *newTrapFrame = (struct el0_regs*)(newTask->kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs));
     memcpy(newTrapFrame, curTrapFrame, sizeof(struct el0_regs));
+    newTrapFrame->sp_el0 += newTask->kernelStackPage - currentTask->kernelStackPage; // newly add
     
     enable_preempt();
+    curTrapFrame->general_purpose[0] = newTask->pid;
     return newTask->pid;
 }
 
@@ -115,5 +133,5 @@ void fork_test(){
         uart_send_uint(ret);
         uart_send_string("\r\n");
     }
-    exit(); // todo: if this line is not added, will cause undefined exception
+    exit(); // todo: if this line is not added, will cause undefined sync exception
 }

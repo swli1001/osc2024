@@ -2,7 +2,8 @@
 #include "mini_uart.h"
 #include "str_util.h"
 #include "malloc.h"
-// #include "sched.h"
+#include "exception.h"
+#include "task.h"
 
 //#define CORE0_TIMER_IRQ_CTRL 0x40000040
 
@@ -186,9 +187,18 @@ void timer_expire_handler() {
     find_next_expire();
 }
 
-void handle_timer_irq() {
-    // unsigned long freq_timer;
-    // asm volatile("mrs %0, cntfrq_el0" : "=r"(freq_timer));
-    // set_time_out_cmp(freq_timer>>5);
-    // timer_tick();
+void reset_timer() {
+    unsigned long cpu_freq = get_cpu_freq();
+    set_time_out_cmp(cpu_freq >> 5);
+}
+
+void timerInterruptHandler() {
+    reset_timer();
+    if (!preemptable) {
+      uart_send_string("not preemptable\n");
+      return;
+    }
+    disable_irq();
+    schedule();
+    enable_irq();
 }
