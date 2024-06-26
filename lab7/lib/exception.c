@@ -2,6 +2,7 @@
 #include "mini_uart.h"
 #include "timer.h"
 #include "utils.h"
+#include "task.h"
 
 extern void uart_irq_handler();
 
@@ -31,6 +32,8 @@ void sync(void) {
     uart_send_string("SPSR_EL1: 0x");
     uart_send_hex(spsr_el1);
     uart_send_string("\r\n\r\n");
+
+    while(1) {} // for lab5, sync() should not be executed
 }
 
 void irq_from_el0(void) {
@@ -41,8 +44,10 @@ void irq_from_el0(void) {
     is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
     is_uart_irq  = get32(CORE0_IRQ_SOURCE) & (1 << 8);
     if(is_timer_irq) {
-        print_seconds();
-        set_time_out_cmp(2);
+        // print_seconds();
+        // set_time_out_cmp(2);
+        // timer_expire_handler();
+        timerInterruptHandler();
     }
     else if(is_uart_irq) {
         if(get32(IRQ_PENDING_1) & (1<<29)) {
@@ -65,7 +70,10 @@ void irq_from_el1(void) {
     is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
     is_uart_irq  = get32(CORE0_IRQ_SOURCE) & (1 << 8);
 
-    if(is_timer_irq) { timer_expire_handler(); }
+    if(is_timer_irq) { 
+        // timer_expire_handler(); 
+        timerInterruptHandler();
+    }
     else if(is_uart_irq) {  }
     enable_el1_interrupt();
 }
@@ -103,4 +111,46 @@ void enable_el1_interrupt() {
 
 void disable_el1_interrupt() {
     asm volatile("msr DAIFSet, 0xf");
+}
+
+void enable_irq() {
+  asm volatile("msr DAIFClr, #2");
+}
+
+void disable_irq() {
+  asm volatile("msr DAIFSet, #2");
+}
+
+const char *entry_error_messages[] = {
+	"SYNC_INVALID_EL1t",
+	"IRQ_INVALID_EL1t",		
+	"FIQ_INVALID_EL1t",		
+	"ERROR_INVALID_EL1t",		
+
+	"SYNC_INVALID_EL1h",		
+	"IRQ_INVALID_EL1h",		
+	"FIQ_INVALID_EL1h",		
+	"ERROR_INVALID_EL1h",		
+
+	"SYNC_INVALID_EL0_64",		
+	"IRQ_INVALID_EL0_64",		
+	"FIQ_INVALID_EL0_64",		
+	"ERROR_INVALID_EL0_64",	
+
+	"SYNC_INVALID_EL0_32",		
+	"IRQ_INVALID_EL0_32",		
+	"FIQ_INVALID_EL0_32",		
+	"ERROR_INVALID_EL0_32",
+
+	"SYNC_ERROR",
+	"SYSCALL_ERROR"	
+};
+
+void show_invalid_entry_message(int type, unsigned long esr, unsigned long addr) {
+    uart_send_string((const char*)entry_error_messages[type]);
+    uart_send_string(", ESR: 0x");
+    uart_send_hex(esr);
+    uart_send_string(", address: 0x"); // ELR
+    uart_send_hex(addr);
+    uart_send_string("\r\n");
 }

@@ -21,6 +21,12 @@ void timer_multiplex(char *cmd);
 void find_next_expire();
 void timer_expire_handler();
 
+void timerInterruptHandler();
+
+unsigned long get_cpu_freq();
+
+void add_timer(void (*callback)(char *msg), char *msg, int sec);
+
 #endif
 
 #endif

@@ -15,6 +15,7 @@ static unsigned long long heap_offset = 0;
 
 void* ini_malloc(unsigned int msize) {
     // allocate "initialized memory"
+    memory_logging = 0;
     char *ptr = (char*)(heap_start_pos + heap_offset);
     heap_offset += msize;
     for(unsigned int i = 0; i < msize; i++) { ptr[i] = 0; }
@@ -152,14 +153,16 @@ void* alloc_frame(unsigned int frame_num) {
         if(tmp != 0) {
             alloc_idx = get_fidx_from_list((void*)tmp);
             ret = fidx_to_addr(alloc_idx);
-
-            uart_send_string("[Free block found]: address = 0x");
-            uart_send_hex((unsigned long)ret);
-            uart_send_string(", order = ");
-            uart_send_uint(assign_ord);
-            uart_send_string(", idx = ");
-            uart_send_uint(alloc_idx);
-            uart_send_string("\r\n");
+            
+            if(memory_logging == 1) {
+                uart_send_string("[Free block found]: address = 0x");
+                uart_send_hex((unsigned long)ret);
+                uart_send_string(", order = ");
+                uart_send_uint(assign_ord);
+                uart_send_string(", idx = ");
+                uart_send_uint(alloc_idx);
+                uart_send_string("\r\n");   
+            }            
 
             break;
         }
@@ -177,22 +180,27 @@ void* alloc_frame(unsigned int frame_num) {
         frame_status[buddy_idx] = assign_ord;
         free_list_insert(&frame_list[buddy_idx], assign_ord);
 
-        uart_send_string("[Release redundant]: order = ");
-        uart_send_uint(assign_ord);
-        uart_send_string(", idx = ");
-        uart_send_uint(buddy_idx);
-        uart_send_string("\r\n");
+        if(memory_logging == 1) {
+            uart_send_string("[Release redundant]: order = ");
+            uart_send_uint(assign_ord);
+            uart_send_string(", idx = ");
+            uart_send_uint(buddy_idx);
+            uart_send_string("\r\n");
+        }
     }
     
     for(int s = 0; s < (1<<assign_ord); s++) { frame_status[alloc_idx+s] = FRAME_ALLOCATED; }
     frame_aord[alloc_idx] = alloc_ord;
-    uart_send_string("[Allocate]: address = 0x");
-    uart_send_hex((unsigned long)ret);
-    uart_send_string(", order = ");
-    uart_send_uint(alloc_ord);
-    uart_send_string(", idx = ");
-    uart_send_uint(alloc_idx);
-    uart_send_string("\r\n");
+
+    if(memory_logging == 1) {
+        uart_send_string("[Allocate]: address = 0x");
+        uart_send_hex((unsigned long)ret);
+        uart_send_string(", order = ");
+        uart_send_uint(alloc_ord);
+        uart_send_string(", idx = ");
+        uart_send_uint(alloc_idx);
+        uart_send_string("\r\n");
+    }
     
     //free_list_dump();
     return ret;
@@ -205,23 +213,29 @@ void free_frame(void* addr) {
     
     if(fidx >= FRAME_NUM) { uart_send_string("[ERROR] Not able to free this block\r\n"); return; }
     if(frame_aord[fidx] == -1) { uart_send_string("[ERROR] This block is not allocated\r\n"); return; }
-    uart_send_string("[Free]: address = 0x");
-    uart_send_hex((unsigned long)addr);
-    uart_send_string(", order = ");
-    uart_send_uint(frame_aord[fidx]);
-    uart_send_string(", idx = ");
-    uart_send_uint(fidx);
-    uart_send_string("\r\n");
+    
+    if(memory_logging == 1) {
+        uart_send_string("[Free]: address = 0x");
+        uart_send_hex((unsigned long)addr);
+        uart_send_string(", order = ");
+        uart_send_uint(frame_aord[fidx]);
+        uart_send_string(", idx = ");
+        uart_send_uint(fidx);
+        uart_send_string("\r\n");
+    }
+    
     tmp = (frame_node*)addr;
     tidx = fidx;
     for(int b = frame_aord[fidx]; b <= MAX_ORDER; b++) {
         bidx = get_buddy_fidx(tidx, b);
         if(frame_status[bidx] == b) {
-            uart_send_string("[Merge buddy]: order = ");
-            uart_send_uint(b);
-            uart_send_string(", idx = ");
-            uart_send_uint(bidx);
-            uart_send_string("\r\n");
+            if(memory_logging == 1) {
+                uart_send_string("[Merge buddy]: order = ");
+                uart_send_uint(b);
+                uart_send_string(", idx = ");
+                uart_send_uint(bidx);
+                uart_send_string("\r\n");
+            }
 
             bptr = (frame_node*)get_list_from_fidx(bidx);
             free_list_delete(bptr, b);
@@ -232,9 +246,12 @@ void free_frame(void* addr) {
                 for(int f = 0; f < (1<<b); f++) { frame_status[f+tidx] = -1; }
                 frame_status[tidx] = b;
 
-                uart_send_string("Free list insert order ");
-                uart_send_uint(b);
-                uart_send_string("\r\n");
+                if(memory_logging == 1) {
+                    uart_send_string("Free list insert order ");
+                    uart_send_uint(b);
+                    uart_send_string("\r\n");
+                }
+
                 break;
             }
         }
@@ -244,9 +261,12 @@ void free_frame(void* addr) {
             for(int f = 0; f < (1<<b); f++) { frame_status[f+tidx] = -1; }
             frame_status[tidx] = b;
 
-            uart_send_string("Free list insert order ");
-            uart_send_uint(b);
-            uart_send_string("\r\n");
+            if(memory_logging == 1) {
+                uart_send_string("Free list insert order ");
+                uart_send_uint(b);
+                uart_send_string("\r\n");
+            }
+
             break;
         }
     }

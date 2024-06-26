@@ -6,6 +6,8 @@
 extern char __end__, __HeapLimit;
 static char *heapStartAddr = &__end__;
 static char *heapEndAddr = &__HeapLimit;
+extern char _stack_top;
+static char *stackTopAddr = &_stack_top;
 
 static unsigned int reserve_fidx_list[MAX_RESERVE_NUM][2] = {0};
 static unsigned int reserved_cnt = 0;
@@ -36,14 +38,19 @@ void memory_init() {
      * @brief memory reservation
      * Spin tables for multicore boot   (0x0000 - 0x1000)
      * kernel stack                     (before 0x40000)
-     * kernel                           (0x80000 - 0x120000) heap end
+     * kernel                           (0x80000 - 0x120000) include kernel + stack
      * initramfs                        0x20000000, 4KB
      * devicetree                       0x2EFF7A00, 32KB
      */
 
-    memory_reserve((void*)0x0, (void*)0x120000); // spin tables, kernel image
+    memory_reserve((void*)0x0, (void*)stackTopAddr); // spin tables, kernel image
     memory_reserve((void*)0x20000000, (void*)0x20001000); // config.txt hard coded initramfs
     memory_reserve((void*)0x2EFF7A00, (void*)0x2EFFFA00);
+    /**
+     * @todo 
+     * initramfs can be determined by device tree access initrd-start, initrd-end
+     * device tree size can be determined by "totalsize" in fdt_header
+     */
 
     process_memory_reserve();
 }

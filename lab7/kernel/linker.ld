@@ -1,3 +1,5 @@
+__StackSize = 0x2000000;
+
 SECTIONS
 {
 	. = 0x80000;
@@ -17,4 +19,12 @@ SECTIONS
 	.heap : { *(.heap*) }
 	. = 0x120000;
 	__HeapLimit = .;
+
+	. = . + __StackSize;
+    .stack : {
+        . = ALIGN(8);
+        _stack_top = .;
+    }
+    __all_end = .;
 } 
+

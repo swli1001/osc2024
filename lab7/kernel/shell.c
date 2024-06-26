@@ -1,7 +1,8 @@
 #include "shell.h"
 #include "mini_uart.h"
 #include "utils.h"
-#include "mailbox.h"
+// #include "mailbox.h"
+#include "peripherals/mailbox.h"
 #include "reboot.h"
 #include "cpio.h"
 #include "malloc.h"
@@ -11,8 +12,14 @@
 #include "exception.h"
 #include "buddy.h"
 #include "dyn_alloc.h"
+#include "thread.h"
+#include "task.h"
+// #include "sched.h"
+#include "sys_call.h"
+#include "fork.h"
 
 #define MAX_BUFFER_SIZE 256u
+#define NULL (void*)0
 
 extern void from_el1_to_el0(unsigned long prog_addr, unsigned long stack_top);
 
@@ -90,6 +97,47 @@ unsigned long get_input_hex() {
     return hexstr_to_int(asize_i);
 }
 
+void send_help_msg() {
+    uart_send_string("help:\t\tprint list of available commands\r\n");
+    uart_send_string("hello:\t\tprint Hello World!\r\n");
+    uart_send_string("reboot:\t\treboot the device\r\n");
+    uart_send_string("hwinfo:\t\tprint hardware information\r\n");
+    uart_send_string("ls:\t\tlist out files in cpio archive\r\n");
+    uart_send_string("cat:\t\tshow the content in the input file\r\n");
+    uart_send_string("malloc:\t\tallocate a continuous space for requested size.\r\n");
+    uart_send_string("exec:\t\texecute user program\r\n");
+    uart_send_string("async_rw:\t\tasynchronous uart demo\r\n");
+    uart_send_string("setTimeout [msg] [sec]:\t\ttimer multiplexing demo\r\n");
+    uart_send_string("b_alloc:\t\tbuddy system alloc pages\r\n");
+    uart_send_string("b_free:\t\tbuddy system free a specific address\r\n");
+    uart_send_string("d_alloc:\t\tdynamic allocate for requested size\r\n");
+    uart_send_string("d_free:\t\tdynamic allocate free a specific address\r\n");
+    uart_send_string("thread_test:\t\tlab5 basic 1 demo\r\n");
+    uart_send_string("fork_test:\t\tlab5 basic 2 demo\r\n");
+    uart_send_string("video:\t\tsyscall.img demo\r\n");
+    uart_send_string("el:\t\tshow current exception level\r\n");
+}
+
+static void demo_fork() {
+    uart_send_string("start fork_test\n");
+    startInEL0((unsigned long)fork_test);
+    currentTask->state = eTerminated;
+}
+
+static void load_syscall_img() {
+    uart_send_string("userspace program start\r\n");
+    exec("syscall.img");
+}
+
+static void demo_video() {
+    unsigned long tmp;
+    asm volatile("mrs %0, cntkctl_el1" : "=r"(tmp));
+    tmp |= 1;
+    asm volatile("msr cntkctl_el1, %0" : : "r"(tmp));
+    add_timer(timerInterruptHandler, "", 5);
+    startInEL0(load_syscall_img);
+}
+
 void parse_cmd()
 {
 
@@ -106,20 +154,7 @@ void parse_cmd()
         get_arm_memory();
     }
     else if (str_cmp(buffer, "help") == 0) {
-        uart_send_string("help:\t\tprint list of available commands\r\n");
-        uart_send_string("hello:\t\tprint Hello World!\r\n");
-        uart_send_string("reboot:\t\treboot the device\r\n");
-        uart_send_string("hwinfo:\t\tprint hardware information\r\n");
-        uart_send_string("ls:\t\tlist out files in cpio archive\r\n");
-        uart_send_string("cat:\t\tshow the content in the input file\r\n");
-        uart_send_string("malloc:\t\tallocate a continuous space for requested size.\r\n");
-        uart_send_string("exec:\t\texecute user program\r\n");
-        uart_send_string("async_rw:\t\tasynchronous uart demo\r\n");
-        uart_send_string("setTimeout [msg] [sec]:\t\ttimer multiplexing demo\r\n");
-        uart_send_string("b_alloc: buddy system alloc pages\r\n");
-        uart_send_string("b_free: buddy system free a specific address\r\n");
-        uart_send_string("d_alloc: dynamic allocate for requested size\r\n");
-        uart_send_string("d_free: dynamic allocate free a specific address\r\n");
+        send_help_msg();
     }
     else if (str_cmp(buffer, "ls") == 0) {
         my_ls();
@@ -182,6 +217,24 @@ void parse_cmd()
         free_chunk((void*)free_addr);
         uart_send_string("\r\n");
     }
+    else if(str_cmp(buffer, "thread_test") == 0) {
+        thread_test();
+    }
+    else if(str_cmp(buffer, "fork_test") == 0) {
+        addTask(demo_fork, 1);
+        startScheduler();
+    }
+    else if(str_cmp(buffer, "video") == 0) {
+        addTask(demo_video, 1);
+        startScheduler();
+    }
+    else if(str_cmp(buffer, "el") == 0) {
+        unsigned long el;
+        asm volatile( "mrs %0, CurrentEL" : "=r"(el) );
+        uart_send_string("Current EL is: ");
+        uart_send_uint((el>>2)&3);
+        uart_send_string("\r\n");
+    }
     else {
         uart_send_string("Command not found! Type help for commands.\r\n");
     }
@@ -190,8 +243,6 @@ void parse_cmd()
 
 void shell() 
 {
-    timer_queue_ini();
-    memory_init();
     while (1) {
         uart_send_string("$ ");
         read_cmd();

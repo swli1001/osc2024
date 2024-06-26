@@ -13,8 +13,6 @@ int hexstr_to_int(char* str);
 unsigned int swap_endian(unsigned int b_end);
 
 void *memset(void* ptr, int val, unsigned int len);
-
-void strcpy(char* dest, const char* src);
-void strncpy(char* dest, const char* src, int len);
+void* memcpy(void *dst, const void *src, unsigned int len);
 
 #endif
