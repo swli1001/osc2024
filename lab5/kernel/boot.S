@@ -25,7 +25,8 @@ master:
 	sub	x1, x1, x0
 	bl	memzero
 
-	mov	sp, #LOW_MEMORY
+	ldr     x7, =_stack_top
+    mov     sp, x7
 	bl	kernel_main
 
 check_cur_el2:

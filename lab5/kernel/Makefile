@@ -44,16 +44,20 @@ INC_C_FILES = \
 		../lib/buddy.c \
 		../lib/dyn_alloc.c \
 		../lib/thread.c \
+		../lib/task.c \
 		../lib/sys_call.c \
 		../lib/fork.c \
-		../lib/sched.c \
+		../lib/list.c \
+		# ../lib/sched.c
 		
 INC_ASM_FILES = ../lib/mm.S \
 				../lib/utils.S \
 				../lib/entry.S \
 				../lib/thread.S \
+				../lib/task.S \
 				../lib/sys_call.S \
-				../lib/sched.S
+				# ../lib/sched.S
+				
 INC_OBJ_FILES = $(INC_C_FILES:../lib/%.c=$(BUILD_DIR)/%_c.o)
 INC_OBJ_FILES += $(INC_ASM_FILES:../lib/%.S=$(BUILD_DIR)/%_s.o)
 

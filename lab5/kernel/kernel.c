@@ -8,6 +8,7 @@
 #include "malloc.h"
 #include "thread.h"
 #include "fork.h"
+#include "task.h"
 
 void kernel_main(void)
 {

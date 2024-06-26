@@ -107,3 +107,12 @@ void *memset(void* ptr, int val, unsigned int len) {
     }
     return ptr;
 }
+
+void* memcpy(void *dst, const void *src, unsigned int len) {
+  char *cdst = (char*)dst;
+  char *csrc  =(char*)src;
+  for (unsigned int i = 0; i < len; i++) {
+    cdst[i] = csrc[i];
+  }
+  return dst;
+}

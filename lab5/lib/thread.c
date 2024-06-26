@@ -3,39 +3,42 @@
 #include "utils.h"
 #include "mini_uart.h"
 #include "shell.h"
+#include "exception.h"
 
 #define NULL (void*)0xFFFFFFFFFFFFFFFF
 
-// extern struct thread_context *current; // always points to the currently executing task
-static struct thread_context * task[TASK_MAX_NUM];
+// extern struct thread *current; // always points to the currently executing task
+static struct thread * task[TASK_MAX_NUM];
 // static int nr_tasks; // contains the number of currently running tasks in the system
-static struct thread_context *run_queue_head, *run_queue_tail;
+static struct thread *run_queue_head, *run_queue_tail;
 
 #define FIRST_TASK task[0]
 #define LAST_TASK task[TASK_MAX_NUM-1]
 
+static unsigned int now_preemptable = 1;
+
 void thread_init() {
     for (int i = 0; i < TASK_MAX_NUM; i++) {
-            task[i] = NULL;
+        task[i] = NULL;
     }
 
-    struct thread_context *new_thread = alloc_frame(1);
+    struct thread *new_thread = alloc_frame(1);
     new_thread->id = 0;
     new_thread->next = NULL;
-    new_thread->is_dead = 0;
+    new_thread->state = TASK_WAITING;
     task[0] = new_thread;
 
-    asm volatile("msr tpidr_el1, %0" : : "r"(new_thread));
+    asm volatile( "msr tpidr_el1, %0" : : "r"(new_thread) );
 
     run_queue_head = NULL;
     run_queue_tail = NULL;
 }
 
 void thread_wrapper() {
-    asm volatile("blr x19"); // branch to thread_func
+    asm volatile( "blr x19" ); // branch to thread_func
 
-    struct thread_context *current_thread = get_current_thread();
-    current_thread->is_dead = 1;
+    struct thread *current_thread = get_current_thread();
+    current_thread->state = TASK_DEAD;
 
     thread_schedule();
 
@@ -46,18 +49,21 @@ int thread_create(void (*thread_func)(void)) {
     int id;
     for (id = 0; id < TASK_MAX_NUM && task[id] != NULL; id++);
     if (id >= TASK_MAX_NUM) {
-            uart_send_string("[ERROR] exceed max number of thread\r\n");
-            while (1) {}
-            return -1;
+        uart_send_string("[ERROR] exceed max number of thread\r\n");
+        while (1) {}
+        return -1;
     }
 
-    struct thread_context *new_thread = alloc_frame(1);
-    new_thread->reg.x19 = (unsigned long)thread_func;
-    new_thread->lr = (unsigned long)thread_wrapper;
-    new_thread->sp = (unsigned long)new_thread + FRAME_SIZE;
-    new_thread->next = NULL;
+    struct thread *new_thread = alloc_frame(1);
+    new_thread->context.reg.x19 = (unsigned long)thread_func;
+    new_thread->context.lr = (unsigned long)thread_wrapper;
+    new_thread->user_stack = alloc_frame(1);
+    new_thread->kernel_stack = alloc_frame(1);  
+    new_thread->context.sp = (unsigned long)new_thread->kernel_stack + FRAME_SIZE;      
     new_thread->id = id;
-    new_thread->is_dead = 0;
+    new_thread->state = TASK_WAITING;
+    new_thread->prev = run_queue_tail;
+    new_thread->next = NULL;
     task[id] = new_thread;
 
     if(run_queue_head == NULL) { run_queue_head = new_thread; } 
@@ -67,19 +73,28 @@ int thread_create(void (*thread_func)(void)) {
     return id;
 }
 
+/**
+ * SCHEDULE
+ */
+void thread_enable_preempt() { now_preemptable = 1; }
+void thread_disable_preempt() { now_preemptable = 0; }
+
 void thread_schedule() {
+    uart_send_string("schedule\r\n");
+    thread_disable_preempt();
+
     if (run_queue_head == NULL) {
-        asm volatile("ldr x0, =_start");
-        asm volatile("mov sp, x0");
-        asm volatile("bl shell");
+        asm volatile( "ldr x0, =_start" );
+        asm volatile( "mov sp, x0" );
+        asm volatile( "bl shell" );
     }
 
-    struct thread_context *next_thread = run_queue_head;
+    struct thread *next_thread = run_queue_head;
     run_queue_head = next_thread->next;
     next_thread->next = NULL;
 
-    struct thread_context *current_thread = get_current_thread();
-    if (current_thread->is_dead) { // kill_zombies()
+    struct thread *current_thread = get_current_thread();
+    if (current_thread->state == TASK_DEAD) { // kill_zombies()
         task[current_thread->id] = NULL;
         free_frame(current_thread);
     } else if (run_queue_head == NULL) {
@@ -90,6 +105,8 @@ void thread_schedule() {
         run_queue_tail = current_thread;
     }
     thread_context_switch(current_thread, next_thread);
+
+    thread_enable_preempt();
 }
 
 void idle(void)

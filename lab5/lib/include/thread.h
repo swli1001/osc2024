@@ -5,11 +5,12 @@
 
 #ifndef __ASSEMBLER__
 
-#define THREAD_SIZE				4096
-
-#define TASK_MAX_NUM				64 
-
-#define TASK_RUNNING				0
+#define THREAD_SIZE			4096
+#define TASK_MAX_NUM		64 
+#define TASK_RUNNING		0
+#define TASK_DEAD			1
+#define TASK_WAITING		2
+#define TASK_MAX_PRIOROTY	999
 
 struct callee_saved_reg {
     unsigned long x19;
@@ -29,19 +30,24 @@ struct thread_context {
 	unsigned long fp;   // x29
 	unsigned long lr;   // x30, link register for function call
 	unsigned long sp;
-    // long state;	// the state of the currently running task, support TASK_RUNNING
-	// long counter; // decreases by 1 each timer tick and when it reaches 0 another task is thread_scheduled
-	// long priority; // When a new task is thread_scheduled its priority is copied to counter
-	// long preempt_count; // if != 0 -> critical section, timer tick ignored, rethread_schedule not triggered
-    unsigned int id; // self add
-    unsigned int is_dead; // self add
-    struct thread_context* next;
+};
+
+struct thread {
+	struct thread_context context;
+	char* user_stack;
+	char* kernel_stack;	
+	unsigned int priority;
+    unsigned int id;
+    unsigned int state;
+	struct thread* prev;
+    struct thread* next;
 };
 
 extern void thread_context_switch(void* prev, void* next);
-extern struct thread_context* get_current_thread(void);
+extern struct thread* get_current_thread(void);
 
 void thread_init();
+int thread_create(void (*thread_func)(void));
 void thread_schedule();
 void thread_test();
 

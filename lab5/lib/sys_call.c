@@ -1,5 +1,5 @@
 #include "sys_call.h"
-#include "sched.h"
+// #include "sched.h"
 #include "peripherals/mailbox.h"
 #include "fork.h"
 #include "buddy.h"
@@ -7,31 +7,32 @@
 #include "./include/cpio.h"
 #include "str_util.h"
 #include "mini_uart.h"
+#include "task.h"
+#include "fork.h"
 
 #define NULL (void*)0xFFFFFFFFFFFFFFFF
 
-/*each system call is actually a synchronous exception
-svc instruction generates a synchronous exception. 
-Such exceptions are handled at EL1 by the operating system.
-
-The OS then validates all arguments, performs the requested action and
-execute normal exception return, which ensures that the execution will 
-resume at EL0 right after the svc instruction. 
-*/
+/**
+ * svc instruction generates a synchronous exception. 
+ * Such exceptions are handled at EL1 by the operating system.
+ * The OS then validates all arguments, performs the requested action and
+ * execute normal exception return, which ensures that the execution will 
+ * resume at EL0 right after the svc instruction. 
+ */
 
 int sys_getpid(){
-    return current->id;
+    return syscall_getpid();
 }
 
 unsigned sys_uartread(char buf[],unsigned size){
-    for(unsigned int i=0;i<size;i++){
-        buf[i]=uart_recv();
+    for(unsigned int i = 0; i < size; i++){
+        buf[i] = uart_recv();
     }
     return size;
 }
 
 unsigned sys_uartwrite(const char buf[], unsigned size){
-    for(int i=0;i<size;i++){
+    for(int i = 0; i < size; i++){
         uart_send(buf[i]);
     }
     return size;
@@ -90,8 +91,8 @@ int sys_exec(const char *name, char *const argv[]) {
 
     // free old program location
     struct pt_regs *p = task_pt_regs(current);
-    p->pc = (unsigned long)move_loc; // move to beginning of program
-    p->sp = current->stack+FRAME_SIZE;
+    p->elr_el1 = (unsigned long)move_loc; // move to beginning of program
+    p->sp_el0 = current->stack+FRAME_SIZE;
 
     preempt_enable();
 
@@ -99,11 +100,11 @@ int sys_exec(const char *name, char *const argv[]) {
 }
 
 int sys_fork(){
-    return copy_process(0,0,0,(unsigned long)malloc(4*4096));
+    return syscall_fork();
 }
 
 void sys_exit(int state){
-    exit_process();
+    return syscall_exit();
 }
 
 int sys_mbox_call(unsigned char ch, unsigned int *mbox) {
@@ -113,7 +114,7 @@ int sys_mbox_call(unsigned char ch, unsigned int *mbox) {
     while (1) {
         while (*MAILBOX_STATUS & MAILBOX_EMPTY) {}
         if (r == *MAILBOX_READ) {
-            return mbox[1]==REQUEST_SUCCEED;
+            return mbox[1] == REQUEST_SUCCEED;
         }
     }
     return 0;
@@ -121,16 +122,14 @@ int sys_mbox_call(unsigned char ch, unsigned int *mbox) {
 
 void sys_kill(int pid){
     struct task_struct *p;
-    for (int i=0;i<NR_TASKS;i++){
-        if(task[i]==NULL) continue;
+    for (int i = 0; i < MAX_TASKS; i++){
+        if(tasks[i].state != eFree) continue;
 
-        p=task[i];
-        if(p->id==(long)pid){
-            preempt_disable();
+        if(tasks[i].pid == (unsigned long)pid){
+            disable_preempt();
             uart_send_string("Kill target thread\r\n");
-            p->state=TASK_ZOMBIE;
-            free_frame((void*)p->stack);
-            preempt_enable();
+            tasks[i].state = eTerminated;
+            enable_preempt();
             break;
         }
     }

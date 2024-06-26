@@ -2,7 +2,7 @@
 #include "mini_uart.h"
 #include "str_util.h"
 #include "malloc.h"
-#include "sched.h"
+// #include "sched.h"
 
 //#define CORE0_TIMER_IRQ_CTRL 0x40000040
 
@@ -17,6 +17,12 @@ void core_timer_enable() {
         "str w0, [x1]\n\t" // unmask timer interrupt
     );
     uart_send_string("core timer enabled\r\n");
+}
+
+unsigned long get_cpu_freq() {
+    unsigned long cpu_freq;
+    asm volatile( "mrs %0, cntfrq_el0" : "=r"(cpu_freq) );
+    return cpu_freq;
 }
 
 void set_time_out_cmp(unsigned int sec) {
@@ -181,8 +187,8 @@ void timer_expire_handler() {
 }
 
 void handle_timer_irq() {
-    unsigned long freq_timer;
-    asm volatile("mrs %0, cntfrq_el0" : "=r"(freq_timer));
-    set_time_out_cmp(freq_timer>>5);
-    timer_tick();
+    // unsigned long freq_timer;
+    // asm volatile("mrs %0, cntfrq_el0" : "=r"(freq_timer));
+    // set_time_out_cmp(freq_timer>>5);
+    // timer_tick();
 }

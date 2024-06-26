@@ -1,140 +1,63 @@
-#include "fork.h"
+#include "task.h"
 #include "malloc.h"
-#include "mini_uart.h"
-#include "sched.h"
-#include "entry.h"
 #include "buddy.h"
-#include "mm.h"
+#include "exception.h"
+#include "fork.h"
+#include "mini_uart.h"
+#include "str_util.h"
+#include "sys_call.h"
 
-#define NULL (void*)0xFFFFFFFFFFFFFFFF
+extern struct taskControlBlock *currentTask;
 
-// supports cloning user threads as well as kernel threads
-int copy_process(unsigned long clone_flags, unsigned long fn, unsigned long arg, unsigned long stack){
-    preempt_disable();
-    struct task_struct *p;
+#define NULL 0
 
-    p=(struct task_struct *)malloc(FRAME_SIZE);
-    if(p==NULL) return -1;
+void forkProcedureForChild() {
+    enable_preempt();
+    struct el0_regs *trap_frame = (struct el0_regs*)(currentTask->kernelStackPage
+                                                    + FRAME_SIZE - sizeof(struct el0_regs));
+    trap_frame->general_purpose[0] = 0;
+    disable_el1_interrupt();
+    asm volatile("mov sp, %0\n\t"
+                 "b exit_kernel" :: "r"(trap_frame));
+}
 
-    struct pt_regs *childregs = task_pt_regs(p);
-    memzero((unsigned long)childregs, sizeof(struct pt_regs));
-    memzero((unsigned long)&p->cpu_context, sizeof(struct cpu_context));
-
-    if (clone_flags & PF_KTHREAD) {
-        //creating a new kernel thread
-        p->cpu_context.x19 = fn;
-        p->cpu_context.x20 = arg;
-    } else {
-        //cloning a user thread
-        struct pt_regs *cur_regs = task_pt_regs(current);       //returns pt_regs area at the top of the kernel stack
-        // *childregs = *cur_regs; (object file generates memcpy)
-        // therefore the for loop is used below
-        for(int i=0; i<sizeof(struct pt_regs); i++) {
-            ((char*)childregs)[i] = ((char*)cur_regs)[i];
-        }
-        /*In the second line current processor state is copied to the new task's state. 
-        x0 in the new state is set to 0, because x0 will be interpreted by the caller as a return value of the syscall. 
-        */
-        childregs->regs[0] = 0; // return value 0
-        /*Next sp for the new task is set to point to the top of the new user stack page. 
-        We also save the pointer to the stack page in order to do a cleanup after the task finishes.*/
-        childregs->sp = stack + FRAME_SIZE;
-        p->stack = stack;
-    }
-
-    p->flags = clone_flags;
-    p->priority = current->priority;
-    p->state = TASK_RUNNING;
-    p->counter = p->priority;
-    p->preempt_count = 1;
+int copyCurrentTask() {
+    disable_preempt();
+    struct taskControlBlock *newTask = addTask(forkProcedureForChild, currentTask->priority);
+    if (newTask == NULL) return -1;
+    // copy user stack and set newTask's sp_el0 before it eret
+    unsigned long spel0, elr_el1;
     
-    p->cpu_context.pc = (unsigned long)ret_from_fork;
-    p->cpu_context.sp = (unsigned long)childregs;
-
-    int pid = nr_tasks++;
-    task[pid] = p;
-    p->id = pid;
-    preempt_enable();
-
-    return pid;
-}
-
-int move_to_user_mode(unsigned long pc){
-    struct pt_regs *regs=task_pt_regs(current);     //current process state
-    memzero((unsigned long)regs, sizeof(*regs));
-    regs->pc=pc;
-    regs->pstate=PSR_MODE_EL0t;
-    unsigned long stack =(unsigned long)malloc(FRAME_SIZE);  //allocate new user stack
+    asm volatile("mrs %0, sp_el0\n\t"
+                "mrs %1, elr_el1" : "=r"(spel0), "=r"(elr_el1));
     
-    if(stack==NULL) return -1;      //no enough space, creating failed
-    /*allocates a new page for the user stack and sets sp field to point to the top of this page.*/
-    regs->sp = stack + FRAME_SIZE;
-    current->stack=stack;
-    return 0;
-
-}
-
-// used to calculate the location of the pt_regs area
-//Because of the way we initialized the current kernel thread, we are sure that after it finished sp will point right before the pt_regs area
-struct pt_regs *task_pt_regs(struct task_struct *tsk) {
-
-    unsigned long p = (unsigned long)tsk + THREAD_SIZE - sizeof(struct pt_regs);
-    return (struct pt_regs *)p;
-
-}
-
-
-void new_user_process(unsigned long func){
-    // printf("Kernel process started, moving to user mode.\n");
-	uart_send_string("Kernel process started, moving to user mode.\r\n");
-    int err=move_to_user_mode(func);
-    if(err<0){
-        // printf("Error while moving process to user mode\n\r");
-		uart_send_string("Error while moving process to user mode\r\n");
-    }
-}
-
-/**
- * BASIC 2 DEMO
- */
-
-void foo_user_02(void)
-{
-    uart_send_string("FOO 2 IS HERE\r\n");
-    exit(0);
-}
-
-void foo_user_01(void)
-{
+    unsigned long sp_offset = spel0 - (unsigned long)currentTask->userStackPage;
+    newTask->userStackPage = alloc_frame(4);
     
+    memcpy((void*)newTask->userStackPage + sp_offset,
+            (void*)currentTask->userStackPage + sp_offset,
+            (4*FRAME_SIZE)-sp_offset);
+
+    newTask->regs.spsr_el1 = 0x340;
+    newTask->regs.elr_el1 = elr_el1;
+    newTask->regs.sp = (unsigned long)newTask->kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs);
+    newTask->regs.sp_el0 = (unsigned long)newTask->userStackPage + sp_offset;
+
+    // copy trapframe
+    struct el0_regs *curTrapFrame = (struct el0_regs*)(currentTask->kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs));
+    struct el0_regs *newTrapFrame = (struct el0_regs*)(newTask->kernelStackPage + FRAME_SIZE - sizeof(struct el0_regs));
+    memcpy(newTrapFrame, curTrapFrame, sizeof(struct el0_regs));
     
-    uart_send_string("FOO 1 IS HERE, pid: ");
-    uart_send_uint(getpid());
-    uart_send_string("\r\n");
-    int ret = 0;
-    if ((ret = fork()) == 0) {
-            // child
-            uart_send_string("child is here: ");
-            uart_send_uint(getpid());
-            uart_send_string("\r\n");
-    } else {
-            // parent
-            uart_send_string("parent is here, child = ");
-            uart_send_uint(ret);
-            uart_send_string("\r\n");
-    }
-    int ret2 = fork();
-    kill(ret2);
-    uart_send_string("FOO 1 DONE\r\n");
-    exit(0);
+    enable_preempt();
+    return newTask->pid;
+}
+
+int syscall_fork() {
+    return copyCurrentTask();
 }
 
 void fork_test(){
     // printf("\nFork Test, pid %d\n", get_pid());
-
-    uart_send_string("\r\nFork Test, pid ");
-    uart_send_uint(getpid());
-    uart_send_string("\r\n");
     unsigned int cnt = 1;
     int ret = 0;
     if ((ret = fork()) == 0) { // child
@@ -192,5 +115,5 @@ void fork_test(){
         uart_send_uint(ret);
         uart_send_string("\r\n");
     }
-    exit(); // ?
+    exit(); // todo: if this line is not added, will cause undefined exception
 }

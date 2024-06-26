@@ -2,6 +2,7 @@
 #include "mini_uart.h"
 #include "timer.h"
 #include "utils.h"
+#include "task.h"
 
 extern void uart_irq_handler();
 
@@ -41,8 +42,10 @@ void irq_from_el0(void) {
     is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
     is_uart_irq  = get32(CORE0_IRQ_SOURCE) & (1 << 8);
     if(is_timer_irq) {
-        print_seconds();
-        set_time_out_cmp(2);
+        // print_seconds();
+        // set_time_out_cmp(2);
+        // timer_expire_handler();
+        timerInterruptHandler();
     }
     else if(is_uart_irq) {
         if(get32(IRQ_PENDING_1) & (1<<29)) {
@@ -65,7 +68,10 @@ void irq_from_el1(void) {
     is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
     is_uart_irq  = get32(CORE0_IRQ_SOURCE) & (1 << 8);
 
-    if(is_timer_irq) { timer_expire_handler(); }
+    if(is_timer_irq) { 
+        // timer_expire_handler(); 
+        timerInterruptHandler();
+    }
     else if(is_uart_irq) {  }
     enable_el1_interrupt();
 }
@@ -105,6 +111,14 @@ void disable_el1_interrupt() {
     asm volatile("msr DAIFSet, 0xf");
 }
 
+void enable_irq() {
+  asm volatile("msr DAIFClr, #2");
+}
+
+void disable_irq() {
+  asm volatile("msr DAIFSet, #2");
+}
+
 const char *entry_error_messages[] = {
 	"SYNC_INVALID_EL1t",
 	"IRQ_INVALID_EL1t",		
@@ -137,16 +151,4 @@ void show_invalid_entry_message(int type, unsigned long esr, unsigned long addr)
     uart_send_string(", address: 0x"); // ELR
     uart_send_hex(addr);
     uart_send_string("\r\n");
-}
-
-void handle_irq() {
-	unsigned int is_timer_irq, is_uart_irq;
-    // judge interrupt source is from timer or uart
-    is_timer_irq = get32(CORE0_IRQ_SOURCE) & (1 << 1);
-	if (is_timer_irq) {
-		handle_timer_irq();
-	} else {
-        uart_send_string("unknown irq encountered\r\n");
-	}
-
 }

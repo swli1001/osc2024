@@ -25,7 +25,12 @@ void disable_aux_interrupt();
 void enable_el1_interrupt();
 void disable_el1_interrupt();
 
+void enable_irq();
+void disable_irq();
+
 void show_invalid_entry_message(int type, unsigned long esr, unsigned long addr);
+
+void undefined(void);
 
 #endif
 

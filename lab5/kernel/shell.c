@@ -13,7 +13,8 @@
 #include "buddy.h"
 #include "dyn_alloc.h"
 #include "thread.h"
-#include "sched.h"
+#include "task.h"
+// #include "sched.h"
 #include "sys_call.h"
 #include "fork.h"
 
@@ -27,8 +28,6 @@ static char buffer[MAX_BUFFER_SIZE];
 extern void async_uart_send_string(char *str);
 extern void async_uart_init();
 extern void test_async();
-
-static int shared = 1;
 
 void read_cmd()
 {
@@ -118,6 +117,15 @@ void send_help_msg() {
     uart_send_string("el:\t\tshow current exception level\r\n");
 }
 
+static void demo_fork() {
+    uart_send_string("start fork_test\n");
+    startInEL0((unsigned long)fork_test);
+}
+
+static void demo_video() {
+
+}
+
 void parse_cmd()
 {
 
@@ -199,14 +207,15 @@ void parse_cmd()
     }
     else if(str_cmp(buffer, "thread_test") == 0) {
         thread_test();
+        // thread_start_el0((unsigned long)thread_test);
     }
     else if(str_cmp(buffer, "fork_test") == 0) {
-        enable_el1_interrupt();
-        copy_process(PF_KTHREAD, (unsigned long)&new_user_process, (unsigned long)&fork_test, 0);
+        addTask(demo_fork, 1);
+        startScheduler();
     }
     else if(str_cmp(buffer, "el") == 0) {
         unsigned long el;
-        asm volatile("mrs %0, CurrentEL" : "=r"(el));
+        asm volatile( "mrs %0, CurrentEL" : "=r"(el) );
         uart_send_string("Current EL is: ");
         uart_send_uint((el>>2)&3);
         uart_send_string("\r\n");

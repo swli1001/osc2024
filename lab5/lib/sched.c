@@ -51,7 +51,7 @@ void _schedule(){
     preempt_enable();
 }
 
-void schedule(){
+void sched_schedule(){
     current->counter = 0;   //current state won't be selected again unless there're no task waiting
     _schedule();
 }
@@ -84,20 +84,20 @@ void exit_process(){
     /*ZOMBIE:In Linux such approach is used to allow parent process to query information about the child even after it finishes.*/
     
     free_frame((void*)current->stack);
-    schedule();         //new task will be selected
+    sched_schedule();         //new task will be selected
 }
 
-void kill_zombies(){
-    struct task_struct *p;
+// void kill_zombies(){
+//     struct task_struct *p;
 
-    for(int i = 0; i < NR_TASKS; i++){
-        if(task[i] == NULL) continue;
-        p = task[i];
-        if(p && p->state == TASK_ZOMBIE){
-            uart_send_string("Zombie found with pid: ");
-            uart_send_uint(p->id);
-            uart_send_string("\r\n");
-            task[i] = NULL;
-        }
-    }
-}
+//     for(int i = 0; i < NR_TASKS; i++){
+//         if(task[i] == NULL) continue;
+//         p = task[i];
+//         if(p && p->state == TASK_ZOMBIE){
+//             uart_send_string("Zombie found with pid: ");
+//             uart_send_uint(p->id);
+//             uart_send_string("\r\n");
+//             task[i] = NULL;
+//         }
+//     }
+// }

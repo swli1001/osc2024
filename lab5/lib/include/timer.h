@@ -23,6 +23,10 @@ void timer_expire_handler();
 
 void handle_timer_irq();
 
+unsigned long get_cpu_freq();
+
+void add_timer(void (*callback)(char *msg), char *msg, int sec);
+
 #endif
 
 #endif

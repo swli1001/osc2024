@@ -269,11 +269,11 @@ void reserve_frame_ord(unsigned int fidx, unsigned int order) {
     target_order = frame_status[target_fidx];
     free_list_delete(&frame_list[target_fidx], frame_status[target_fidx]);
 
-    // uart_send_string("reserve_frame_ord found, idx = ");
-    // uart_send_uint(target_fidx);
-    // uart_send_string(", order = ");
-    // uart_send_uint(target_order);
-    // uart_send_string("\r\n");
+    uart_send_string("reserve_frame_ord found, idx = ");
+    uart_send_uint(target_fidx);
+    uart_send_string(", order = ");
+    uart_send_uint(target_order);
+    uart_send_string("\r\n");
 
     while(target_order > order) {
         target_order--;
@@ -293,9 +293,9 @@ void reserve_frame_ord(unsigned int fidx, unsigned int order) {
             free_list_insert(&frame_list[target_fidx], target_order);
             // uart_send_uint(target_fidx);
         }
-        // uart_send_string(", order = ");
-        // uart_send_uint(target_order);
-        // uart_send_string("\r\n");
+        uart_send_string(", order = ");
+        uart_send_uint(target_order);
+        uart_send_string("\r\n");
     }
 
     for(int s = 0; s < (1<<target_order); s++) { frame_status[target_fidx+s] = FRAME_RESERVED; }
@@ -305,13 +305,13 @@ void reserve_frame_ord(unsigned int fidx, unsigned int order) {
  * reserve_fidx_range, inclusive of end_fidx
  */
 void reserve_fidx_range(unsigned int start_fidx, unsigned int end_fidx, unsigned int order) {
-    // uart_send_string("memory reserve frame index range: ");
-    // uart_send_uint(start_fidx);
-    // uart_send_string(" - ");
-    // uart_send_uint(end_fidx);
-    // uart_send_string(", current order = ");
-    // uart_send_uint(order);
-    // uart_send_string("\r\n");
+    uart_send_string("memory reserve frame index range: ");
+    uart_send_uint(start_fidx);
+    uart_send_string(" - ");
+    uart_send_uint(end_fidx);
+    uart_send_string(", current order = ");
+    uart_send_uint(order);
+    uart_send_string("\r\n");
 
     /**
      * Break down if requested size > size of MAX_ORDER blocks
